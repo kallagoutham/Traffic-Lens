@@ -4,8 +4,9 @@ import BarChart from "./components/BarChart";
 import TimeSeries from "./components/TimeSeries";
 import ParallelCoords from "./components/ParallelCoords";
 import { API_BASE_URL, ENDPOINTS } from "./constants/constants";
+import StateYearlyTrend from "./components/StateYearlyTrend";
 //import Dropdown from "./components/Dropdown";
-import StateAnalysis from "./components/StateAnalysis";
+// import StateAnalysis from "./components/StateAnalysis";
 
 export default function App() {
   const [stateData, setStateData] = useState([]);
@@ -14,6 +15,9 @@ export default function App() {
   const [parData, setParData] = useState([]);
   const [selectedState, setSelectedState] = useState(null);
   const [hoveredState, setHoveredState] = useState(null);
+  const [yearlyLoading, setYearlyLoading] = useState(false);
+  const [yearlyData, setYearlyData]     = useState([]);
+
   const qs = selectedState ? `?state=${selectedState}` : '';
 
   useEffect(() => {
@@ -29,7 +33,16 @@ export default function App() {
     fetch(`${API_BASE_URL}${ENDPOINTS.PARALLEL}${qs}`)
       .then((r) => r.json())
       .then(setParData);
-  }, [qs]);
+    setYearlyLoading(true);
+    fetch(`${API_BASE_URL}${ENDPOINTS.YEARLY_TREND}${qs}`)
+      .then(r => r.json())
+      .then(data => setYearlyData(data))
+      .catch(err => {
+        console.error("Failed to load yearly trend:", err);
+        setYearlyData([]); 
+      })
+      .finally(() => setYearlyLoading(false));
+}, [qs]);
 
   //eslint-disable-next-line
   const stateOptions = stateData.map((d) => ({
@@ -78,6 +91,17 @@ export default function App() {
         </div>
         <div className="chart-card">
           <div className="chart-title">
+            {selectedState
+              ? `${selectedState} Yearly Trends`
+              : "Yearly Accident Trends"}
+          </div>
+          <StateYearlyTrend
+            data={yearlyData}
+            loading={yearlyLoading}
+          />
+        </div>
+        {/* <div className="chart-card">
+          <div className="chart-title">
             {hoveredState || selectedState
               ? `${hoveredState || selectedState} Analysis`
               : "State Analysis"}
@@ -93,7 +117,7 @@ export default function App() {
               Hover over or select a state to see its numbers.
             </div>
           )}
-        </div>
+        </div> */}
       </div>
     </>
   );

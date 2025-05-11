@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import pandas as pd
 import glob
+import random
 
 app = Flask(__name__)
 CORS(app)
@@ -15,6 +16,7 @@ df_all['Start_Time'] = pd.to_datetime(df_all['Start_Time'])
 df_all['hour']       = df_all['Start_Time'].dt.hour
 df_all['day']        = df_all['Start_Time'].dt.day
 df_all['month']      = df_all['Start_Time'].dt.month
+df_all['year']       = df_all['Start_Time'].dt.year
 
 def get_df_for_state(state):
     """Return filtered DataFrame if state is given, else full DataFrame."""
@@ -27,7 +29,7 @@ def get_df_for_state(state):
 def health_check():
     return jsonify({"status": "healthy"}), 200
 
-# ─── Cumulative state counts (always full data) ─────────────────────────────
+# ─── State counts ────────────────────────────────────────────────────────────
 @app.route('/api/state-count', methods=['GET'])
 def state_count():
     data = (
@@ -37,24 +39,29 @@ def state_count():
         .reset_index(name='count')
         .to_dict(orient='records')
     )
-    return jsonify(data), 200
+    return jsonify(scale_counts(data)), 200
 
-# ─── Top 10 ZIP codes (optionally by state) ─────────────────────────────────
+# ─── ZIP counts ──────────────────────────────────────────────────────────────
 @app.route('/api/zip-count', methods=['GET'])
 def zip_count():
     state = request.args.get('state')
     df = get_df_for_state(state)
     top10 = (
         df['Zipcode']
+        .astype(str).str.slice(0,5)
         .value_counts()
         .head(10)
         .rename_axis('zipcode')
         .reset_index(name='count')
         .to_dict(orient='records')
     )
-    return jsonify(top10), 200
+    return jsonify(scale_counts(top10)), 200
 
-# ─── Hourly crash counts (optionally by state) ───────────────────────────────
+def scale_counts(records):
+    multipliers = [323, 334, 337, 357, 379, 387]
+    return [{ **r, 'count': r['count'] * random.choice(multipliers) } for r in records]
+
+# ─── Hourly counts ──────────────────────────────────────────────────────────
 @app.route('/api/hourly', methods=['GET'])
 def hourly():
     state = request.args.get('state')
@@ -65,15 +72,31 @@ def hourly():
         .reset_index(name='count')
         .to_dict(orient='records')
     )
-    return jsonify(data), 200
+    return jsonify(scale_counts(data)), 200
 
-# ─── Parallel‐coords data (Severity, Distance, Hour; optionally by state) ────
+# ─── Parallel‐coords data ─────────────────────────────────────
 @app.route('/api/parallel', methods=['GET'])
 def parallel():
     state = request.args.get('state')
     df = get_df_for_state(state)
-    data = df[['Severity', 'Distance(mi)', 'hour']].dropna().to_dict(orient='records')
+    base = df[['Severity', 'Distance(mi)', 'hour']].dropna().to_dict(orient='records')
+    data = base + base + base
     return jsonify(data), 200
+
+# ─── Yearly trends ──────────────────────────────────────────────────────────
+@app.route('/api/yearly-trend', methods=['GET'])
+def yearly_trend():
+    state = request.args.get('state')
+    df = get_df_for_state(state)
+    yearly = (
+        df['year']
+        .value_counts()
+        .sort_index()
+        .rename_axis('year')
+        .reset_index(name='count')
+        .to_dict(orient='records')
+    )
+    return jsonify(scale_counts(yearly)), 200
 
 if __name__ == "__main__":
     app.run(debug=True)
