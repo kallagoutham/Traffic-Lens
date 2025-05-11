@@ -1,13 +1,138 @@
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+/* ===========================
+   GLOBAL
+   =========================== */
+   body {
+    margin: 0;
+    font-family: "Roboto", sans-serif;
+    background: #fafafa;
+    color: #333;
+  }
+  
+  #root {
+    display: grid;
+    grid-template-rows: 60px auto;
+    height: 100vh;
+  }
+  
+  /* ===========================
+     HEADER
+     =========================== */
+  header {
+    background: #fff;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  /* ===========================
+     DASHBOARD GRID
+     =========================== */
+  .dashboard {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: 1fr 1fr;
+    gap: 16px;
+    padding: 16px;
+    overflow: hidden;
+    background: #fafafa;
+  }
+  
+  /* Make the 4th card (parallel coords) span two columns */
+  .chart-card:nth-child(4) {
+    grid-column: 1 / span 2;
+  }
+  
+  /* ===========================
+     CHART CARD
+     =========================== */
+  .chart-card {
+    position: relative;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 32px 16px 16px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+    overflow: hidden;
+  }
+  
+  /* Title label in the top-left of each card */
+  .chart-title {
+    position: absolute;
+    top: 12px;
+    left: 16px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: #555;
+    pointer-events: none;
+  }
+  
+  /* If you have a dropdown inside a card, nudge it down */
+  .chart-card select {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    background: #fff;
+    border: 1px solid #ccc;
+    padding: 4px 8px;
+    font-size: 0.875rem;
+  }
+  
+  /* Responsive SVG to fill the card */
+  .chart-card svg {
+    width: 100%;
+    height: calc(100% - 32px);
+  }
+  
+  /* ===========================
+     SMALL UTILITY
+     =========================== */
+  .hidden {
+    display: none;
+  }
+  
+  /* Dropdown styling */
+.styled-dropdown {
+  /* remove native arrow in most browsers */
+  appearance: none;
+  -moz-appearance: none;
+  -webkit-appearance: none;
+
+  /* box model */
+  width: 10%;
+  padding: 8px 12px;
+  padding-right: 32px; /* space for custom arrow */
+  font-size: 0.9rem;
+  line-height: 1.4;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: #fff;
+  color: #333;
+  cursor: pointer;
+
+  /* custom dropdown arrow (pure-CSS) */
+  background-image:
+    linear-gradient(45deg, transparent 50%, #555 50%),
+    linear-gradient(135deg, #555 50%, transparent 50%),
+    radial-gradient(#fff 70%, transparent 72%);
+  background-position:
+    calc(100% - 18px) calc(50% - 6px),
+    calc(100% - 14px) calc(50% - 6px),
+    100% 50%;
+  background-size:
+    6px 6px,
+    6px 6px,
+    1.5em 1.5em;
+  background-repeat: no-repeat;
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+.styled-dropdown:focus {
+  outline: none;
+  border-color: #4d90fe;
+  box-shadow: 0 0 0 3px rgba(77,144,254,0.4);
 }
