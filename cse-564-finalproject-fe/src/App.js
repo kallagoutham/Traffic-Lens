@@ -4,7 +4,7 @@ import BarChart from "./components/BarChart";
 import TimeSeries from "./components/TimeSeries";
 import ParallelCoords from "./components/ParallelCoords";
 import { API_BASE_URL, ENDPOINTS } from "./constants/constants";
-import Dropdown from "./components/Dropdown";
+//import Dropdown from "./components/Dropdown";
 import StateAnalysis from "./components/StateAnalysis";
 
 export default function App() {
@@ -31,15 +31,17 @@ export default function App() {
       .then(setParData);
   }, [qs]);
 
+  //eslint-disable-next-line
   const stateOptions = stateData.map((d) => ({
     value: d.state,
     label: d.state,
   }));
+  
 
   return (
     <>
       <header>🚦 Traffic Accident Analysis Dashboard</header>
-      <div
+      {/* <div
         className="controls"
         style={{ padding: "8px 12px"}}
       >
@@ -48,7 +50,7 @@ export default function App() {
           value={selectedState}
           onChange={setSelectedState}
         />
-      </div>
+      </div> */}
       <div className="dashboard">
         <div className="chart-card">
           <div className="chart-title">State-wise Crashes</div>
@@ -68,7 +70,7 @@ export default function App() {
           <div className="chart-title">Hourly Trend</div>
           <TimeSeries data={timeData} />
         </div>
-        <div className="chart-card" style={{ gridColumn: "1 / span 3" }}>
+        <div className="chart-card">
           <div className="chart-title">
             Severity / Distance / Hour Relationships
           </div>

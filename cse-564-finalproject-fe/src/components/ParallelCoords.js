@@ -5,7 +5,7 @@ export default function ParallelCoords({ data }) {
   const ref = useRef();
   useEffect(() => {
     const dims = ['Severity','Distance(mi)','hour'];
-    const w=600,h=200, padding=40;
+    const w=400,h=300, padding=20;
     const svg = d3.select(ref.current)
       .attr('width', w).attr('height', h);
     svg.selectAll('*').remove();

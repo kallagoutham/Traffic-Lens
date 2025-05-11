@@ -136,3 +136,16 @@
   border-color: #4d90fe;
   box-shadow: 0 0 0 3px rgba(77,144,254,0.4);
 }
+
+/* tooltip for BarChart */
+.tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #ccc;
+  padding: 6px 8px;
+  font-size: 0.8rem;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  transition: opacity 0.2s;
+}
