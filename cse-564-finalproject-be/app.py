@@ -58,6 +58,27 @@ def zip_count():
     )
     return jsonify(scale_counts(top10)), 200
 
+# ─── NEW - County counts ───────────────────────────────────────────────────────
+@app.route('/api/county-count', methods=['GET'])
+def county_count():
+    state = request.args.get('state')
+    limit = request.args.get('limit', default=15, type=int)
+    
+    df = get_df_for_state(state)
+    if 'County' not in df.columns:
+        return jsonify({"error": "County data not available"}), 404
+    
+    top_counties = (
+        df['County']
+        .fillna('Unknown')
+        .value_counts()
+        .head(limit)
+        .rename_axis('county')
+        .reset_index(name='count')
+        .to_dict(orient='records')
+    )
+    return jsonify(scale_counts(top_counties)), 200
+
 def scale_counts(records):
     multipliers = [323, 334, 337, 357, 379, 387]
     return [{ **r, 'count': r['count'] * random.choice(multipliers) } for r in records]

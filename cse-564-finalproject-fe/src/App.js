@@ -6,7 +6,8 @@ import ParallelCoords from "./components/ParallelCoords";
 import { API_BASE_URL, ENDPOINTS } from "./constants/constants";
 import StateYearlyTrend from "./components/StateYearlyTrend";
 import StateDetailMap from "./components/StateDetailMap";
-
+import CountyTreeMap from "./components/CountyTreeMap"
+import IntegratedVisualization from "./components/IntegratedVisualization";
 
 export default function App() {
   const [stateData, setStateData] = useState([]);
@@ -22,81 +23,96 @@ export default function App() {
   const [timeLoading, setTimeLoading] = useState(false);
   const [locationData, setLocationData] = useState([]);
   const [locationLoading, setLocationLoading] = useState(false);
+  const [countyData, setCountyData] = useState([]);
+  const [countyLoading, setCountyLoading] = useState(false);
+  const [zipLoading, setZipLoading] = useState(false);
 
-  const qs = selectedState ? `?state=${selectedState}` : '';
+
+  const qs = selectedState ? `?state=${selectedState}` : "";
 
   useEffect(() => {
     // Load state data
     fetch(`${API_BASE_URL}${ENDPOINTS.STATE_COUNT}${qs}`)
       .then((r) => r.json())
       .then(setStateData)
-      .catch(err => console.error("Failed to load state data:", err));
-    
+      .catch((err) => console.error("Failed to load state data:", err));
+
     // Load ZIP code data
     fetch(`${API_BASE_URL}${ENDPOINTS.ZIP_COUNT}${qs}`)
       .then((r) => r.json())
       .then(setZipData)
-      .catch(err => console.error("Failed to load ZIP data:", err));
-    
+      .catch((err) => console.error("Failed to load ZIP data:", err));
+
     // Load hourly data with loading state
     setTimeLoading(true);
     fetch(`${API_BASE_URL}${ENDPOINTS.HOURLY}${qs}`)
       .then((r) => r.json())
       .then(setTimeData)
-      .catch(err => {
+      .catch((err) => {
         console.error("Failed to load hourly data:", err);
         setTimeData([]);
       })
       .finally(() => setTimeLoading(false));
-    
+
     // Load weekday data with loading state
     setWeekdayLoading(true);
-    fetch(`${API_BASE_URL}/api/weekday-count${qs}`)
+    fetch(`${API_BASE_URL}${ENDPOINTS.WEEKDAY_COUNT}${qs}`)
       .then((r) => r.json())
       .then(setWeekdayData)
-      .catch(err => {
+      .catch((err) => {
         console.error("Failed to load weekday data:", err);
         setWeekdayData([]);
       })
       .finally(() => setWeekdayLoading(false));
-    
+
     // Load parallel coordinates data
     fetch(`${API_BASE_URL}${ENDPOINTS.PARALLEL}${qs}`)
       .then((r) => r.json())
       .then(setParData)
-      .catch(err => console.error("Failed to load parallel data:", err));
-    
+      .catch((err) => console.error("Failed to load parallel data:", err));
+
     // Load yearly trend data with loading state
     setYearlyLoading(true);
     fetch(`${API_BASE_URL}${ENDPOINTS.YEARLY_TREND}${qs}`)
-      .then(r => r.json())
-      .then(data => setYearlyData(data))
-      .catch(err => {
+      .then((r) => r.json())
+      .then((data) => setYearlyData(data))
+      .catch((err) => {
         console.error("Failed to load yearly trend:", err);
-        setYearlyData([]); 
+        setYearlyData([]);
       })
       .finally(() => setYearlyLoading(false));
 
-      if (selectedState) {
-        setLocationLoading(true);
-        fetch(`${API_BASE_URL}${ENDPOINTS.ACCIDENT_LOCATIONS}${qs}`)
-          .then(r => r.json())
-          .then(data => setLocationData(data))
-          .catch(err => {
-            console.error("Failed to load location data:", err);
-            setLocationData([]);
-          })
-          .finally(() => setLocationLoading(false));
-      } else {
-        setLocationData([]);
-      }
-  }, [qs,selectedState]);
+    if (selectedState) {
+      setLocationLoading(true);
+      fetch(`${API_BASE_URL}${ENDPOINTS.ACCIDENT_LOCATIONS}${qs}`)
+        .then((r) => r.json())
+        .then((data) => setLocationData(data))
+        .catch((err) => {
+          console.error("Failed to load location data:", err);
+          setLocationData([]);
+        })
+        .finally(() => setLocationLoading(false));
+    } else {
+      setLocationData([]);
+    }
+
+    // Load county data - works with or without selected state
+    setCountyLoading(true);
+    fetch(`${API_BASE_URL}${ENDPOINTS.COUNTY_COUNT}${qs}`)
+      .then((r) => r.json())
+      .then((data) => setCountyData(data))
+      .catch((err) => {
+        console.error("Failed to load county data:", err);
+        setCountyData([]);
+      })
+      .finally(() => setCountyLoading(false));
+  }, [qs, selectedState]);
 
   const stateOptions = stateData.map((d) => ({
     value: d.state,
     label: d.state,
   }));
-  
+
   return (
     <>
       <header>🚦 Traffic Accident Analysis Dashboard</header>
@@ -112,23 +128,25 @@ export default function App() {
           />
         </div>
         <div className="chart-card">
-          <div className="chart-title">Top 10 ZIP Codes</div>
-          <BarChart data={zipData} />
+          <div className="chart-title">
+            {selectedState
+              ? `${selectedState} Yearly Trends`
+              : "Yearly Accident Trends"}
+          </div>
+          <StateYearlyTrend data={yearlyData} loading={yearlyLoading} />
         </div>
         <div className="chart-card">
           <div className="chart-title">Time Analysis</div>
-          <TimeSeries 
-            hourlyData={timeData} 
+          <TimeSeries
+            hourlyData={timeData}
             weekdayData={weekdayData}
             hourlyLoading={timeLoading}
             weekdayLoading={weekdayLoading}
           />
         </div>
         <div className="chart-card">
-          <div className="chart-title">
-            Accident Locations
-          </div>
-          <StateDetailMap 
+          <div className="chart-title">Accident Locations</div>
+          <StateDetailMap
             selectedState={selectedState}
             data={locationData}
             loading={locationLoading}
@@ -140,15 +158,23 @@ export default function App() {
           </div>
           <ParallelCoords data={parData} />
         </div>
-        <div className="chart-card">
+         <div className="chart-card">
           <div className="chart-title">
-            {selectedState
-              ? `${selectedState} Yearly Trends`
-              : "Yearly Accident Trends"}
+            {selectedState 
+              ? `${selectedState} County Distribution` 
+              : "Top Counties Overall"}
           </div>
-          <StateYearlyTrend
-            data={yearlyData}
-            loading={yearlyLoading}
+          <IntegratedVisualization
+            countyData={countyData}
+            zipData={zipData}
+            countyLoading={countyLoading}
+            zipLoading={zipLoading}
+            state={selectedState}
+            height={500}
+            colorScheme="Reds"
+            animated={true}
+            treemapTitle={selectedState ? `${selectedState} Top Counties` : "Top Counties Overall"}
+            barChartTitle={selectedState ? `${selectedState} Top ZIP Codes` : "Top ZIP Codes Overall"}
           />
         </div>
       </div>

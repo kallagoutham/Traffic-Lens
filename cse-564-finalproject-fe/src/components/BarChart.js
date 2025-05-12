@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 
-export default function BarChart({ data = [] }) {
+export default function BarChart({ data = [], viewMode = 'bar', title = "ZIP Code Distribution" }) {
   const svgRef = useRef();
   const containerRef = useRef();
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [chartMode, setChartMode] = useState(viewMode);
 
   // Get container dimensions on mount and resize
   useEffect(() => {
@@ -23,7 +24,13 @@ export default function BarChart({ data = [] }) {
     };
   }, []);
 
+  // Update chartMode when viewMode prop changes
   useEffect(() => {
+    setChartMode(viewMode);
+  }, [viewMode]);
+
+  // Render bar chart
+  const renderBarChart = () => {
     if (!data || data.length === 0 || dimensions.width === 0) return;
 
     const svg = d3.select(svgRef.current);
@@ -36,9 +43,19 @@ export default function BarChart({ data = [] }) {
       .attr('viewBox', `0 0 ${dimensions.width} ${dimensions.height}`);
 
     // margins + inner size
-    const margin = { top: 20, right: 20, bottom: 45, left: 50 };
+    const margin = { top: 35, right: 20, bottom: 45, left: 50 };
     const innerWidth = dimensions.width - margin.left - margin.right;
     const innerHeight = dimensions.height - margin.top - margin.bottom;
+
+    // Add title
+    svg.append('text')
+      .attr('x', dimensions.width / 2)
+      .attr('y', 15)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '14px')
+      .attr('font-weight', 'bold')
+      .attr('fill', '#333')
+      .text(title);
 
     // group for chart area
     const chart = svg.append('g')
@@ -46,7 +63,7 @@ export default function BarChart({ data = [] }) {
 
     // scales
     const x = d3.scaleBand()
-      .domain(data.map(d => d.zipcode))
+      .domain(data.map(d => d.zipcode || d.county || d.id))
       .range([0, innerWidth])
       .padding(0.2); // More spacing between bars
 
@@ -98,7 +115,7 @@ export default function BarChart({ data = [] }) {
       .attr('text-anchor', 'middle')
       .attr('fill', '#666')
       .style('font-size', '12px')
-      .text('ZIP Code');
+      .text(data[0]?.zipcode ? 'ZIP Code' : (data[0]?.county ? 'County' : 'ID'));
 
     svg.append('text')
       .attr('transform', 'rotate(-90)')
@@ -116,7 +133,7 @@ export default function BarChart({ data = [] }) {
       .style('pointer-events', 'none');
       
     tooltip.append('rect')
-      .attr('width', 100)
+      .attr('width', 120)
       .attr('height', 50)
       .attr('rx', 4)
       .attr('ry', 4)
@@ -135,7 +152,7 @@ export default function BarChart({ data = [] }) {
       .data(data)
       .join('rect')
         .attr('class', 'bar')
-        .attr('x', d => x(d.zipcode))
+        .attr('x', d => x(d.zipcode || d.county || d.id))
         .attr('width', x.bandwidth())
         .attr('y', innerHeight) // Start at bottom for animation
         .attr('height', 0) // Start with height 0 for animation
@@ -157,7 +174,7 @@ export default function BarChart({ data = [] }) {
           .attr('x', 8)
           .attr('y', 20)
           .attr('font-weight', 'bold')
-          .text(d.zipcode);
+          .text(d.zipcode || d.county || d.id);
         tooltipText.append('tspan')
           .attr('x', 8)
           .attr('y', 35)
@@ -189,7 +206,211 @@ export default function BarChart({ data = [] }) {
       .attr('height', d => innerHeight - y(d.count))
       .ease(d3.easeBounceOut);
 
-  }, [data, dimensions]);
+    // Add toggle button
+    const toggleBtn = svg.append('g')
+      .attr('class', 'toggle-btn')
+      .attr('transform', `translate(${dimensions.width - 40}, 15)`)
+      .style('cursor', 'pointer')
+      .on('click', () => {
+        setChartMode(chartMode === 'bar' ? 'treemap' : 'bar');
+      });
+
+    toggleBtn.append('rect')
+      .attr('width', 25)
+      .attr('height', 25)
+      .attr('rx', 4)
+      .attr('fill', '#eee')
+      .attr('stroke', '#ccc');
+
+    toggleBtn.append('text')
+      .attr('x', 12.5)
+      .attr('y', 17)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '16px')
+      .attr('fill', '#666')
+      .text(chartMode === 'bar' ? '🔄' : '📊');
+  };
+
+  // Render treemap
+  const renderTreemap = () => {
+    if (!data || data.length === 0 || dimensions.width === 0) return;
+
+    const svg = d3.select(svgRef.current);
+    svg.selectAll('*').remove();
+
+    // Set viewBox for better responsiveness
+    svg
+      .attr('width', '100%')
+      .attr('height', '100%')
+      .attr('viewBox', `0 0 ${dimensions.width} ${dimensions.height}`);
+
+    // margins
+    const margin = { top: 40, right: 10, bottom: 10, left: 10 };
+    const innerWidth = dimensions.width - margin.left - margin.right;
+    const innerHeight = dimensions.height - margin.top - margin.bottom;
+
+    // Add title
+    svg.append('text')
+      .attr('x', dimensions.width / 2)
+      .attr('y', 20)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '14px')
+      .attr('font-weight', 'bold')
+      .attr('fill', '#333')
+      .text(title);
+
+    // Create hierarchical data for treemap
+    const root = d3.hierarchy({ children: data })
+      .sum(d => d.count)
+      .sort((a, b) => b.value - a.value);
+
+    // Create treemap layout
+    const treemap = d3.treemap()
+      .size([innerWidth, innerHeight])
+      .paddingOuter(3)
+      .paddingInner(1)
+      .round(true);
+
+    treemap(root);
+
+    // Color scale
+    const colorScale = d3.scaleSequential(d3.interpolateReds)
+      .domain([0, d3.max(data, d => d.count)]);
+
+    // Create container for treemap
+    const chart = svg.append('g')
+      .attr('transform', `translate(${margin.left},${margin.top})`);
+
+    // Custom tooltip
+    const tooltip = svg.append('g')
+      .attr('class', 'tooltip')
+      .style('opacity', 0)
+      .style('pointer-events', 'none');
+      
+    tooltip.append('rect')
+      .attr('width', 120)
+      .attr('height', 50)
+      .attr('rx', 4)
+      .attr('ry', 4)
+      .style('fill', 'rgba(0, 0, 0, 0.8)')
+      .style('stroke', '#ffcc00')
+      .style('stroke-width', 1);
+      
+    const tooltipText = tooltip.append('text')
+      .attr('x', 8)
+      .attr('y', 20)
+      .style('font-size', '12px')
+      .style('fill', '#fff');
+
+    // Add cells
+    const cell = chart.selectAll('g')
+      .data(root.leaves())
+      .join('g')
+        .attr('transform', d => `translate(${d.x0},${d.y0})`);
+
+    cell.append('rect')
+      .attr('width', d => d.x1 - d.x0)
+      .attr('height', d => d.y1 - d.y0)
+      .attr('fill', d => colorScale(d.data.count))
+      .attr('stroke', '#fff')
+      .attr('stroke-width', 1)
+      .style('opacity', 0) // Start invisible for animation
+      .on('mouseover', function(event, d) {
+        // Highlight rectangle
+        d3.select(this)
+          .attr('stroke', '#ffcc00')
+          .attr('stroke-width', 2);
+          
+        // Position tooltip text
+        tooltipText.selectAll('*').remove();
+        tooltipText.append('tspan')
+          .attr('x', 8)
+          .attr('y', 20)
+          .attr('font-weight', 'bold')
+          .text(d.data.zipcode || d.data.county || d.data.id || '');
+        tooltipText.append('tspan')
+          .attr('x', 8)
+          .attr('y', 35)
+          .text(`Count: ${d.data.count.toLocaleString()}`);
+          
+        // Position tooltip
+        const [x, y] = d3.pointer(event, svg.node());
+        tooltip
+          .attr('transform', `translate(${x + 10}, ${y - 50})`)
+          .transition().duration(200)
+          .style('opacity', 1);
+      })
+      .on('mousemove', function(event) {
+        const [x, y] = d3.pointer(event, svg.node());
+        tooltip.attr('transform', `translate(${x + 10}, ${y - 50})`);
+      })
+      .on('mouseout', function() {
+        d3.select(this)
+          .attr('stroke', '#fff')
+          .attr('stroke-width', 1);
+          
+        tooltip.transition().duration(200).style('opacity', 0);
+      })
+      .transition() // Animate appearance
+      .duration(800)
+      .delay((d, i) => i * 30)
+      .style('opacity', 1);
+
+    // Add text labels to larger cells
+    cell.append('text')
+      .attr('x', 4)
+      .attr('y', 14)
+      .style('font-size', '10px')
+      .style('font-weight', 'bold')
+      .style('fill', 'white')
+      .style('opacity', 0) // Start invisible for animation
+      .text(d => {
+        const width = d.x1 - d.x0;
+        const height = d.y1 - d.y0;
+        // Only show text for cells large enough to fit it
+        if (width > 40 && height > 25) {
+          return (d.data.zipcode || d.data.county || d.data.id || '').substring(0, 8);
+        }
+        return '';
+      })
+      .transition() // Animate appearance
+      .duration(800)
+      .delay((d, i) => i * 30 + 400)
+      .style('opacity', 1);
+
+    // Add toggle button
+    const toggleBtn = svg.append('g')
+      .attr('class', 'toggle-btn')
+      .attr('transform', `translate(${dimensions.width - 40}, 15)`)
+      .style('cursor', 'pointer')
+      .on('click', () => {
+        setChartMode(chartMode === 'bar' ? 'treemap' : 'bar');
+      });
+
+    toggleBtn.append('rect')
+      .attr('width', 25)
+      .attr('height', 25)
+      .attr('rx', 4)
+      .attr('fill', '#eee')
+      .attr('stroke', '#ccc');
+
+    toggleBtn.append('text')
+      .attr('x', 12.5)
+      .attr('y', 17)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '16px')
+      .attr('fill', '#666')
+      .text(chartMode === 'bar' ? '🔄' : '📊');
+  };
+
+  // Main rendering effect
+  useEffect(() => {
+    if (chartMode === 'bar') {
+      renderBarChart();
+    } else {
+      renderTreemap();
+    }
+  }, [data, dimensions, chartMode]);
 
   // Show loading or no data states
   const loadingOrEmpty = () => {
