@@ -1,10 +1,8 @@
 import React, { useEffect, useState } from "react";
 import MapChart from "./components/MapChart";
-import BarChart from "./components/BarChart";
 import TimeSeries from "./components/TimeSeries";
 import ParallelCoords from "./components/ParallelCoords";
 import { API_BASE_URL, ENDPOINTS } from "./constants/constants";
-import StateYearlyTrend from "./components/StateYearlyTrend";
 import StateDetailMap from "./components/StateDetailMap";
 import CountyTreeMap from "./components/CountyTreeMap"
 import IntegratedVisualization from "./components/IntegratedVisualization";
@@ -128,22 +126,15 @@ export default function App() {
           />
         </div>
         <div className="chart-card">
-          <div className="chart-title">
-            {selectedState
-              ? `${selectedState} Yearly Trends`
-              : "Yearly Accident Trends"}
-          </div>
-          <StateYearlyTrend data={yearlyData} loading={yearlyLoading} />
-        </div>
-        <div className="chart-card">
-          <div className="chart-title">Time Analysis</div>
+          <div className="chart-title">Time & Year Analysis</div>
           <TimeSeries
             hourlyData={timeData}
-            weekdayData={weekdayData}
+            yearlyData={yearlyData}
             hourlyLoading={timeLoading}
-            weekdayLoading={weekdayLoading}
+            yearlyLoading={yearlyLoading}
           />
         </div>
+
         <div className="chart-card">
           <div className="chart-title">Accident Locations</div>
           <StateDetailMap

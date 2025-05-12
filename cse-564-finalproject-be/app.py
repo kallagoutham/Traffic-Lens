@@ -2,7 +2,6 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import pandas as pd
 import glob
-import random
 
 app = Flask(__name__)
 CORS(app)
@@ -40,7 +39,7 @@ def state_count():
         .reset_index(name='count')
         .to_dict(orient='records')
     )
-    return jsonify(scale_counts(data)), 200
+    return jsonify(data), 200
 
 # ─── ZIP counts ──────────────────────────────────────────────────────────────
 @app.route('/api/zip-count', methods=['GET'])
@@ -56,7 +55,7 @@ def zip_count():
         .reset_index(name='count')
         .to_dict(orient='records')
     )
-    return jsonify(scale_counts(top10)), 200
+    return jsonify(top10), 200
 
 # ─── NEW - County counts ───────────────────────────────────────────────────────
 @app.route('/api/county-count', methods=['GET'])
@@ -77,11 +76,7 @@ def county_count():
         .reset_index(name='count')
         .to_dict(orient='records')
     )
-    return jsonify(scale_counts(top_counties)), 200
-
-def scale_counts(records):
-    multipliers = [323, 334, 337, 357, 379, 387]
-    return [{ **r, 'count': r['count'] * random.choice(multipliers) } for r in records]
+    return jsonify(top_counties), 200
 
 # ─── Hourly counts ──────────────────────────────────────────────────────────
 @app.route('/api/hourly', methods=['GET'])
@@ -94,7 +89,7 @@ def hourly():
         .reset_index(name='count')
         .to_dict(orient='records')
     )
-    return jsonify(scale_counts(data)), 200
+    return jsonify(data), 200
 
 # ─── Weekday counts ─────────────────────────────────────────────────────────
 @app.route('/api/weekday-count', methods=['GET'])
@@ -111,7 +106,7 @@ def weekday_count():
         .reset_index(name='count')
         .to_dict(orient='records')
     )
-    return jsonify(scale_counts(counts)), 200
+    return jsonify(counts), 200
 
 # ─── Parallel‐coords data ─────────────────────────────────────
 @app.route('/api/parallel', methods=['GET'])
@@ -130,7 +125,7 @@ def parallel():
     available_columns = [col for col in weather_attributes if col in df.columns]
     selected_data = df[available_columns].dropna()
     result = selected_data.head(500).to_dict(orient='records')
-    result = result +  result 
+    result = result 
     return jsonify(result), 200
 
 # ─── Yearly trends ──────────────────────────────────────────────────────────
@@ -146,7 +141,7 @@ def yearly_trend():
         .reset_index(name='count')
         .to_dict(orient='records')
     )
-    return jsonify(scale_counts(yearly)), 200
+    return jsonify(yearly), 200
 
 # ─── Location Data ──────────────────────────────────────────────────────
 @app.route('/api/accident-locations', methods=['GET'])
