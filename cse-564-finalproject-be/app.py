@@ -17,6 +17,7 @@ df_all['hour']       = df_all['Start_Time'].dt.hour
 df_all['day']        = df_all['Start_Time'].dt.day
 df_all['month']      = df_all['Start_Time'].dt.month
 df_all['year']       = df_all['Start_Time'].dt.year
+df_all['weekday'] = df_all['Start_Time'].dt.day_name()
 
 def get_df_for_state(state):
     """Return filtered DataFrame if state is given, else full DataFrame."""
@@ -73,6 +74,23 @@ def hourly():
         .to_dict(orient='records')
     )
     return jsonify(scale_counts(data)), 200
+
+# ─── Weekday counts ─────────────────────────────────────────────────────────
+@app.route('/api/weekday-count', methods=['GET'])
+def weekday_count():
+    state = request.args.get('state')
+    df = get_df_for_state(state)
+    # ensure Monday→Sunday order
+    weekdays = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+    counts = (
+        df['weekday']
+        .value_counts()
+        .reindex(weekdays, fill_value=0)
+        .rename_axis('weekday')
+        .reset_index(name='count')
+        .to_dict(orient='records')
+    )
+    return jsonify(scale_counts(counts)), 200
 
 # ─── Parallel‐coords data ─────────────────────────────────────
 @app.route('/api/parallel', methods=['GET'])

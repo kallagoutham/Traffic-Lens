@@ -6,6 +6,7 @@ export const ENDPOINTS = {
     HOURLY:'/api/hourly',
     PARALLEL:'/api/parallel',
     YEARLY_TREND: '/api/yearly-trend',
+    WEEKDAY_COUNT: '/api/weekday-count',
     STATE_ZIP:    state => `/api/state/${state}/zip-count`,
     STATE_HOURLY: state => `/api/state/${state}/hourly`,
     STATE_PARALLEL: state => `/api/state/${state}/parallel`,

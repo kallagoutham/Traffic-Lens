@@ -33,15 +33,6 @@ const stateNames = {
   'WV': 'West Virginia', 'WI': 'Wisconsin', 'WY': 'Wyoming'
 };
 
-/**
- * Props:
- *  - data: Array<{ state: string; count: number }>
- *  - selectedState: string | null
- *  - hoveredState: string | null
- *  - onStateSelect: (stateCode: string) => void
- *  - onStateHover: (stateCode: string | null) => void
- *  - loading?: boolean
- */
 export default function MapChart({
   data = [],
   selectedState = null,
@@ -73,6 +64,9 @@ export default function MapChart({
   }, []);
 
   useEffect(() => {
+    // Log when selectedState changes to help with debugging
+    console.log('Selected state updated:', selectedState);
+    
     if (dimensions.width === 0) return; // Only check for dimensions, always render map
 
     const svg = d3.select(svgRef.current);
@@ -98,17 +92,15 @@ export default function MapChart({
     );
     const path = d3.geoPath(projection);
 
-    // Build a color scale from your data
     const counts = new Map((data || []).map(d => [d.state, d.count]));
     const maxCount = data && data.length > 0 ? d3.max(data, d => d.count) || 1 : 1;
     
-    // Create a better color scale with more vibrant reds - using a custom color range
+    // Create a better color scale with more vibrant reds - using a pink start color
     const color = d3.scaleSequential()
       .domain([0, maxCount])
       .interpolator(d => {
-        // Custom interpolator for more vibrant reds like in the reference image
-        // Start with very light pink and go to deep red
-        return d3.interpolate("#fff0f0", "#cc0000")(d);
+        // Custom interpolator starting with light pink instead of white
+        return d3.interpolate("#ffdddd", "#cc0000")(d);
       });
 
     // Add a background rectangle for the sea
@@ -124,7 +116,6 @@ export default function MapChart({
       .join("path")
         .attr("d", path)
         .attr("fill", d => {
-          // Cast id into a number so '06' → 6
           const code = fipsToState[+d.id];
           return color(counts.get(code) || 0);
         })
@@ -134,29 +125,31 @@ export default function MapChart({
           if (code === selectedState) return "#2ecc71";
           // Yellow highlight for hovered state (if not the selected state)
           if (code === hoveredState && code !== selectedState) return "#ffcc00";
-          // Default white border
-          return "#fff";
+          // Black borders for all other states
+          return "#222";
         })
         .attr("stroke-width", d => {
           const code = fipsToState[+d.id];
           // Thicker border for selected or hovered states
-          return (code === selectedState || code === hoveredState) ? 2 : 0.7;
+          return (code === selectedState || code === hoveredState) ? 2 : 0.5;
         })
         .style("cursor", "pointer")
         .on("click", (event, d) => {
           const code = fipsToState[+d.id];
+          // Call onStateSelect with the state code
           onStateSelect(code);
+          
+          // DEBUG: Log the selected state to help diagnose issues
+          console.log('State selected:', code);
         })
         .on("mouseover", (event, d) => {
           const code = fipsToState[+d.id];
           onStateHover(code);
           
-          // Only update the stroke if this isn't the selected state
-          // (we want to keep the green for selected state)
           if (code !== selectedState) {
             d3.select(event.currentTarget)
-              .attr("stroke", "#ffcc00")  // Yellow highlight border
-              .attr("stroke-width", 2); // Thicker border on hover
+              .attr("stroke", "#ffcc00")  
+              .attr("stroke-width", 2); 
           }
           
           // Get data for tooltip
@@ -166,10 +159,7 @@ export default function MapChart({
             : stateCount >= 1000 
               ? `${(stateCount / 1000).toFixed(1)}k` 
               : stateCount.toLocaleString();
-          
-          // Calculate position for tooltip
           const [x, y] = path.centroid(d);
-          
           // Show tooltip
           setTooltip({
             show: true,
@@ -185,12 +175,10 @@ export default function MapChart({
           onStateHover(null);
           
           const code = fipsToState[+d.id];
-          
-          // Only update the stroke if this isn't the selected state
           if (code !== selectedState) {
             d3.select(event.currentTarget)
-              .attr("stroke", "#fff")  // Return to white border
-              .attr("stroke-width", 0.7); // Return to normal width
+              .attr("stroke", "#222")  // Return to black border
+              .attr("stroke-width", 0.5); // Return to normal width
           }
           
           setTooltip({ ...tooltip, show: false });

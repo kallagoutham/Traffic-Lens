@@ -12,27 +12,59 @@ export default function App() {
   const [stateData, setStateData] = useState([]);
   const [zipData, setZipData] = useState([]);
   const [timeData, setTimeData] = useState([]);
+  const [weekdayData, setWeekdayData] = useState([]);
   const [parData, setParData] = useState([]);
   const [selectedState, setSelectedState] = useState(null);
   const [hoveredState, setHoveredState] = useState(null);
   const [yearlyLoading, setYearlyLoading] = useState(false);
-  const [yearlyData, setYearlyData]     = useState([]);
+  const [yearlyData, setYearlyData] = useState([]);
+  const [weekdayLoading, setWeekdayLoading] = useState(false);
+  const [timeLoading, setTimeLoading] = useState(false);
 
   const qs = selectedState ? `?state=${selectedState}` : '';
 
   useEffect(() => {
+    // Load state data
     fetch(`${API_BASE_URL}${ENDPOINTS.STATE_COUNT}${qs}`)
       .then((r) => r.json())
-      .then(setStateData);
+      .then(setStateData)
+      .catch(err => console.error("Failed to load state data:", err));
+    
+    // Load ZIP code data
     fetch(`${API_BASE_URL}${ENDPOINTS.ZIP_COUNT}${qs}`)
       .then((r) => r.json())
-      .then(setZipData);
+      .then(setZipData)
+      .catch(err => console.error("Failed to load ZIP data:", err));
+    
+    // Load hourly data with loading state
+    setTimeLoading(true);
     fetch(`${API_BASE_URL}${ENDPOINTS.HOURLY}${qs}`)
       .then((r) => r.json())
-      .then(setTimeData);
+      .then(setTimeData)
+      .catch(err => {
+        console.error("Failed to load hourly data:", err);
+        setTimeData([]);
+      })
+      .finally(() => setTimeLoading(false));
+    
+    // Load weekday data with loading state
+    setWeekdayLoading(true);
+    fetch(`${API_BASE_URL}/api/weekday-count${qs}`)
+      .then((r) => r.json())
+      .then(setWeekdayData)
+      .catch(err => {
+        console.error("Failed to load weekday data:", err);
+        setWeekdayData([]);
+      })
+      .finally(() => setWeekdayLoading(false));
+    
+    // Load parallel coordinates data
     fetch(`${API_BASE_URL}${ENDPOINTS.PARALLEL}${qs}`)
       .then((r) => r.json())
-      .then(setParData);
+      .then(setParData)
+      .catch(err => console.error("Failed to load parallel data:", err));
+    
+    // Load yearly trend data with loading state
     setYearlyLoading(true);
     fetch(`${API_BASE_URL}${ENDPOINTS.YEARLY_TREND}${qs}`)
       .then(r => r.json())
@@ -42,7 +74,7 @@ export default function App() {
         setYearlyData([]); 
       })
       .finally(() => setYearlyLoading(false));
-}, [qs]);
+  }, [qs]);
 
   //eslint-disable-next-line
   const stateOptions = stateData.map((d) => ({
@@ -50,7 +82,6 @@ export default function App() {
     label: d.state,
   }));
   
-
   return (
     <>
       <header>🚦 Traffic Accident Analysis Dashboard</header>
@@ -80,8 +111,13 @@ export default function App() {
           <BarChart data={zipData} />
         </div>
         <div className="chart-card">
-          <div className="chart-title">Hourly Trend</div>
-          <TimeSeries data={timeData} />
+          <div className="chart-title">Time Analysis</div>
+          <TimeSeries 
+            hourlyData={timeData} 
+            weekdayData={weekdayData}
+            hourlyLoading={timeLoading}
+            weekdayLoading={weekdayLoading}
+          />
         </div>
         <div className="chart-card">
           <div className="chart-title">
