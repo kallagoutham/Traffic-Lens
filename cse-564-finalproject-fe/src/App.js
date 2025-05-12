@@ -4,20 +4,17 @@ import TimeSeries from "./components/TimeSeries";
 import ParallelCoords from "./components/ParallelCoords";
 import { API_BASE_URL, ENDPOINTS } from "./constants/constants";
 import StateDetailMap from "./components/StateDetailMap";
-import CountyTreeMap from "./components/CountyTreeMap"
 import IntegratedVisualization from "./components/IntegratedVisualization";
 
 export default function App() {
   const [stateData, setStateData] = useState([]);
   const [zipData, setZipData] = useState([]);
   const [timeData, setTimeData] = useState([]);
-  const [weekdayData, setWeekdayData] = useState([]);
   const [parData, setParData] = useState([]);
   const [selectedState, setSelectedState] = useState(null);
   const [hoveredState, setHoveredState] = useState(null);
   const [yearlyLoading, setYearlyLoading] = useState(false);
   const [yearlyData, setYearlyData] = useState([]);
-  const [weekdayLoading, setWeekdayLoading] = useState(false);
   const [timeLoading, setTimeLoading] = useState(false);
   const [locationData, setLocationData] = useState([]);
   const [locationLoading, setLocationLoading] = useState(false);
@@ -51,17 +48,6 @@ export default function App() {
         setTimeData([]);
       })
       .finally(() => setTimeLoading(false));
-
-    // Load weekday data with loading state
-    setWeekdayLoading(true);
-    fetch(`${API_BASE_URL}${ENDPOINTS.WEEKDAY_COUNT}${qs}`)
-      .then((r) => r.json())
-      .then(setWeekdayData)
-      .catch((err) => {
-        console.error("Failed to load weekday data:", err);
-        setWeekdayData([]);
-      })
-      .finally(() => setWeekdayLoading(false));
 
     // Load parallel coordinates data
     fetch(`${API_BASE_URL}${ENDPOINTS.PARALLEL}${qs}`)
