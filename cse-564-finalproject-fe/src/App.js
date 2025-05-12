@@ -5,8 +5,8 @@ import TimeSeries from "./components/TimeSeries";
 import ParallelCoords from "./components/ParallelCoords";
 import { API_BASE_URL, ENDPOINTS } from "./constants/constants";
 import StateYearlyTrend from "./components/StateYearlyTrend";
-//import Dropdown from "./components/Dropdown";
-// import StateAnalysis from "./components/StateAnalysis";
+import StateDetailMap from "./components/StateDetailMap";
+
 
 export default function App() {
   const [stateData, setStateData] = useState([]);
@@ -20,6 +20,8 @@ export default function App() {
   const [yearlyData, setYearlyData] = useState([]);
   const [weekdayLoading, setWeekdayLoading] = useState(false);
   const [timeLoading, setTimeLoading] = useState(false);
+  const [locationData, setLocationData] = useState([]);
+  const [locationLoading, setLocationLoading] = useState(false);
 
   const qs = selectedState ? `?state=${selectedState}` : '';
 
@@ -74,9 +76,22 @@ export default function App() {
         setYearlyData([]); 
       })
       .finally(() => setYearlyLoading(false));
-  }, [qs]);
 
-  //eslint-disable-next-line
+      if (selectedState) {
+        setLocationLoading(true);
+        fetch(`${API_BASE_URL}${ENDPOINTS.ACCIDENT_LOCATIONS}${qs}`)
+          .then(r => r.json())
+          .then(data => setLocationData(data))
+          .catch(err => {
+            console.error("Failed to load location data:", err);
+            setLocationData([]);
+          })
+          .finally(() => setLocationLoading(false));
+      } else {
+        setLocationData([]);
+      }
+  }, [qs,selectedState]);
+
   const stateOptions = stateData.map((d) => ({
     value: d.state,
     label: d.state,
@@ -85,16 +100,6 @@ export default function App() {
   return (
     <>
       <header>🚦 Traffic Accident Analysis Dashboard</header>
-      {/* <div
-        className="controls"
-        style={{ padding: "8px 12px"}}
-      >
-        <Dropdown
-          options={[{ value: null, label: "All States" }, ...stateOptions]}
-          value={selectedState}
-          onChange={setSelectedState}
-        />
-      </div> */}
       <div className="dashboard">
         <div className="chart-card">
           <div className="chart-title">State-wise Crashes</div>
@@ -121,6 +126,16 @@ export default function App() {
         </div>
         <div className="chart-card">
           <div className="chart-title">
+            Accident Locations
+          </div>
+          <StateDetailMap 
+            selectedState={selectedState}
+            data={locationData}
+            loading={locationLoading}
+          />
+        </div>
+        <div className="chart-card">
+          <div className="chart-title">
             Severity / Distance / Hour Relationships
           </div>
           <ParallelCoords data={parData} />
@@ -136,24 +151,6 @@ export default function App() {
             loading={yearlyLoading}
           />
         </div>
-        {/* <div className="chart-card">
-          <div className="chart-title">
-            {hoveredState || selectedState
-              ? `${hoveredState || selectedState} Analysis`
-              : "State Analysis"}
-          </div>
-          {hoveredState || selectedState ? (
-            <StateAnalysis
-              data={stateData.find(
-                (d) => d.state === (hoveredState || selectedState)
-              )}
-            />
-          ) : (
-            <div style={{ color: "#888", padding: "20px" }}>
-              Hover over or select a state to see its numbers.
-            </div>
-          )}
-        </div> */}
       </div>
     </>
   );

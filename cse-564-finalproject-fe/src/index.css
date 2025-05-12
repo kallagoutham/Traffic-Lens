@@ -42,11 +42,6 @@
     background: #fafafa;
   }
   
-  /* Make the 4th card (parallel coords) span two columns */
-  .chart-card:nth-child(4) {
-    grid-column: 1 / span 2;
-  }
-  
   /* ===========================
      CHART CARD
      =========================== */

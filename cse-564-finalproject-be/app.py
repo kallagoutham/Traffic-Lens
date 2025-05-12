@@ -97,9 +97,20 @@ def weekday_count():
 def parallel():
     state = request.args.get('state')
     df = get_df_for_state(state)
-    base = df[['Severity', 'Distance(mi)', 'hour']].dropna().to_dict(orient='records')
-    data = base + base + base
-    return jsonify(data), 200
+    weather_attributes = [
+        'Severity', 
+        'Temperature(F)', 
+        'Humidity(%)', 
+        'Pressure(in)',
+        'Visibility(mi)', 
+        'Wind_Speed(mph)', 
+        'Precipitation(in)'
+    ]
+    available_columns = [col for col in weather_attributes if col in df.columns]
+    selected_data = df[available_columns].dropna()
+    result = selected_data.head(500).to_dict(orient='records')
+    result = result +  result 
+    return jsonify(result), 200
 
 # ─── Yearly trends ──────────────────────────────────────────────────────────
 @app.route('/api/yearly-trend', methods=['GET'])
@@ -115,6 +126,30 @@ def yearly_trend():
         .to_dict(orient='records')
     )
     return jsonify(scale_counts(yearly)), 200
+
+# ─── Location Data ──────────────────────────────────────────────────────
+@app.route('/api/accident-locations', methods=['GET'])
+def accident_locations():
+    state = request.args.get('state')
+    if not state:
+        return jsonify({"error": "State parameter is required"}), 400
+    csv_path = f"../filtered_datasets/traffic-accident-filtered_{state}.csv"
+    try:
+        tdf = pd.read_csv(csv_path)
+    except FileNotFoundError:
+        return jsonify({"error": f"No data file for state '{state}'"}), 404
+    tdf['Start_Time'] = pd.to_datetime(tdf['Start_Time'], errors='coerce')
+    cols = ['Start_Lat', 'Start_Lng', 'Severity', 'Start_Time']
+    if 'Description' in tdf.columns:
+        cols.append('Description')
+    filtered = tdf[cols]
+    filtered = filtered.dropna(subset=['Start_Lat', 'Start_Lng', 'Start_Time'])
+    if len(filtered) > 30000:
+        filtered = filtered.sample(n=30000, random_state=42)
+    filtered['Start_Time'] = filtered['Start_Time'].dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+    records = filtered.to_dict(orient='records')
+    return jsonify(records), 200
+
 
 if __name__ == "__main__":
     app.run(debug=True)
