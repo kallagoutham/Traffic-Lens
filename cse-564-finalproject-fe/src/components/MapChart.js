@@ -64,125 +64,101 @@ export default function MapChart({
   }, []);
 
   useEffect(() => {
-    // Log when selectedState changes to help with debugging
-    console.log('Selected state updated:', selectedState);
-    
-    if (dimensions.width === 0) return; // Only check for dimensions, always render map
-
-    const svg = d3.select(svgRef.current);
+    if (dimensions.width === 0) return;
     const { width, height } = dimensions;
-
+    const svg = d3.select(svgRef.current);
     svg.selectAll("*").remove();
 
-    // Create our SVG group
+    // group we’ll zoom/transform
     const g = svg.append("g");
 
-    // GeoJSON for the states
+    // draw background + map
     const geo = topojson.feature(us, us.objects.states);
-
-    // Projection that fits exactly into our SVG
-    const projection = d3.geoAlbersUsa();
-    const margin = { top: 10, right: 10, bottom: 10, left: 10 };
-    projection.fitExtent(
+    const projection = d3.geoAlbersUsa().fitExtent(
       [
-        [margin.left, margin.top], 
-        [width - margin.right, height - margin.bottom]
+        [10, 10],
+        [width - 10, height - 10],
       ],
       geo
     );
     const path = d3.geoPath(projection);
 
-    const counts = new Map((data || []).map(d => [d.state, d.count]));
-    const maxCount = data && data.length > 0 ? d3.max(data, d => d.count) || 1 : 1;
-    
-    // Create a better color scale with more vibrant reds - using a pink start color
-    const color = d3.scaleSequential()
-      .domain([0, maxCount])
-      .interpolator(d => {
-        // Custom interpolator starting with light pink instead of white
-        return d3.interpolate("#ffdddd", "#cc0000")(d);
-      });
+    // color scale…
+    const counts = new Map(data.map((d) => [d.state, d.count]));
+    const maxCount = d3.max(data, (d) => d.count) || 1;
+    const color = d3
+      .scaleSequential([0, maxCount], (t) =>
+        d3.interpolate("#ffdddd", "#cc0000")(t)
+      );
 
-    // Add a background rectangle for the sea
-    g.append("rect")
-      .attr("width", width)
-      .attr("height", height)
-      .attr("fill", "#ffffff"); // White background
-
-    // Add the states
+    // sea + states
+    g.append("rect").attr("width", width).attr("height", height).attr("fill", "#fff");
     g.append("g")
       .selectAll("path")
       .data(geo.features)
       .join("path")
-        .attr("d", path)
-        .attr("fill", d => {
-          const code = fipsToState[+d.id];
-          return color(counts.get(code) || 0);
-        })
-        .attr("stroke", d => {
-          const code = fipsToState[+d.id];
-          // Green highlight for selected state
-          if (code === selectedState) return "#2ecc71";
-          // Yellow highlight for hovered state (if not the selected state)
-          if (code === hoveredState && code !== selectedState) return "#ffcc00";
-          // Black borders for all other states
-          return "#222";
-        })
-        .attr("stroke-width", d => {
-          const code = fipsToState[+d.id];
-          // Thicker border for selected or hovered states
-          return (code === selectedState || code === hoveredState) ? 2 : 0.5;
-        })
-        .style("cursor", "pointer")
-        .on("click", (event, d) => {
-          const code = fipsToState[+d.id];
-          // Call onStateSelect with the state code
-          onStateSelect(code);
-          
-          // DEBUG: Log the selected state to help diagnose issues
-          console.log('State selected:', code);
-        })
-        .on("mouseover", (event, d) => {
-          const code = fipsToState[+d.id];
-          onStateHover(code);
-          
-          if (code !== selectedState) {
-            d3.select(event.currentTarget)
-              .attr("stroke", "#ffcc00")  
-              .attr("stroke-width", 2); 
-          }
-          
-          // Get data for tooltip
-          const stateCount = counts.get(code) || 0;
-          const formattedCount = stateCount >= 1000000 
-            ? `${(stateCount / 1000000).toFixed(1)}M` 
-            : stateCount >= 1000 
-              ? `${(stateCount / 1000).toFixed(1)}k` 
-              : stateCount.toLocaleString();
-          const [x, y] = path.centroid(d);
-          // Show tooltip
-          setTooltip({
-            show: true,
-            content: `
-              <strong>${stateNames[code] || code}</strong><br/>
-              Count: ${formattedCount}
-            `,
-            x: x + margin.left,
-            y: y + margin.top
-          });
-        })
-        .on("mouseout", (event, d) => {
-          onStateHover(null);
-          
-          const code = fipsToState[+d.id];
-          if (code !== selectedState) {
-            d3.select(event.currentTarget)
-              .attr("stroke", "#222")  // Return to black border
-              .attr("stroke-width", 0.5); // Return to normal width
-          }
-          
-          setTooltip({ ...tooltip, show: false });
+      .attr("d", path)
+      .attr("fill", (d) => {
+        const code = fipsToState[+d.id];
+        return color(counts.get(code) || 0);
+      })
+      .attr("stroke", (d) => {
+        const code = fipsToState[+d.id];
+        if (code === selectedState) return "#2ecc71";
+        if (code === hoveredState && code !== selectedState) return "#ffcc00";
+        return "#222";
+      })
+      .attr("stroke-width", (d) => {
+        const code = fipsToState[+d.id];
+        return code === selectedState || code === hoveredState ? 2 : 0.5;
+      })
+      .style("cursor", "pointer")
+      .on("mouseover", (event, d) => {
+        const code = fipsToState[+d.id];
+        onStateHover(code);
+        d3.select(event.currentTarget)
+          .attr("stroke", "#ffcc00")
+          .attr("stroke-width", 2);
+        const [x, y] = path.centroid(d);
+        const cnt = counts.get(code) || 0;
+        setTooltip({
+          show: true,
+          content: `<strong>${stateNames[code] || code}</strong><br/>Count: ${cnt}`,
+          x,
+          y,
         });
+      })
+      .on("mouseout", (event, d) => {
+        const code = fipsToState[+d.id];
+        onStateHover(null);
+        d3.select(event.currentTarget)
+          .attr("stroke", code === selectedState ? "#2ecc71" : "#222")
+          .attr("stroke-width", code === selectedState ? 2 : 0.5);
+        setTooltip({ ...tooltip, show: false });
+      })
+      .on("click", (event, d) => {
+        const code = fipsToState[+d.id];
+
+        // compute bounding box of that state
+        const [[x0, y0], [x1, y1]] = path.bounds(d);
+        const dx = x1 - x0,
+          dy = y1 - y0,
+          x = (x0 + x1) / 2,
+          y = (y0 + y1) / 2;
+        const scale = Math.min(width / dx, height / dy) * 0.8;
+        const translate = [width / 2 - scale * x, height / 2 - scale * y];
+
+        // disable further clicks while animating
+        g.style("pointer-events", "none");
+
+        // animate the zoom
+        g.transition()
+          .duration(750)
+          .attr("transform", `translate(${translate}) scale(${scale})`)
+          .on("end", () => {
+            onStateSelect(code);
+          });
+      });
 
     // Add an improved legend with better visibility
     const legendWidth = 20;

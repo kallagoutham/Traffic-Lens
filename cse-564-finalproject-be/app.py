@@ -166,6 +166,5 @@ def accident_locations():
     records = filtered.to_dict(orient='records')
     return jsonify(records), 200
 
-
 if __name__ == "__main__":
     app.run(debug=True)

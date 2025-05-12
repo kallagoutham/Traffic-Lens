@@ -99,18 +99,55 @@ export default function App() {
 
   return (
     <>
-      <header>🚦 Traffic Accident Analysis Dashboard</header>
+      <header
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "10px 20px",
+        }}
+      >
+        <h1 style={{ margin: 0 }}>🚦 Traffic Accident Analysis Dashboard</h1>
+        {selectedState && (
+          <button
+            onClick={() => setSelectedState(null)}
+            style={{
+              padding: "6px 12px",
+              fontSize: "0.9rem",
+              cursor: "pointer",
+              border: "1px solid #ccc",
+              borderRadius: "4px",
+              background: "#fff",
+            }}
+          >
+            Reset View
+          </button>
+        )}
+      </header>
+
       <div className="dashboard">
-        <div className="chart-card">
-          <div className="chart-title">State-wise Crashes</div>
-          <MapChart
-            data={stateData}
-            selectedState={selectedState}
-            hoveredState={hoveredState}
-            onStateSelect={setSelectedState}
-            onStateHover={setHoveredState}
-          />
-        </div>
+        {!selectedState && (
+          <div className="chart-card">
+            <div className="chart-title">State-wise Crashes</div>
+            <MapChart
+              data={stateData}
+              selectedState={selectedState}
+              hoveredState={hoveredState}
+              onStateSelect={setSelectedState}
+              onStateHover={setHoveredState}
+            />
+          </div>
+        )}
+        {selectedState && (
+          <div className="chart-card">
+            <div className="chart-title">Accident Locations</div>
+            <StateDetailMap
+              selectedState={selectedState}
+              data={locationData}
+              loading={locationLoading}
+            />
+          </div>
+        )}
         <div className="chart-card">
           <div className="chart-title">Time & Year Analysis</div>
           <TimeSeries
@@ -118,15 +155,6 @@ export default function App() {
             yearlyData={yearlyData}
             hourlyLoading={timeLoading}
             yearlyLoading={yearlyLoading}
-          />
-        </div>
-
-        <div className="chart-card">
-          <div className="chart-title">Accident Locations</div>
-          <StateDetailMap
-            selectedState={selectedState}
-            data={locationData}
-            loading={locationLoading}
           />
         </div>
         <div className="chart-card">
