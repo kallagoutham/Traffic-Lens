@@ -1,5 +1,5 @@
-// Updated App.js with SunburstChart data fetching added
-import React, { useEffect, useState } from "react";
+// Modified App.js to avoid re-render loops with PCP component
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import MapChart from "./components/MapChart";
 import TimeSeries from "./components/TimeSeries";
 import ParallelCoords from "./components/ParallelCoords";
@@ -36,27 +36,64 @@ export default function App() {
   const [sunburstLoading, setSunburstLoading] = useState(false);
   const [sunburstError, setSunburstError] = useState(null);
   
-  const [filters, setFilters] = useState({
+  const filtersRef = useRef({
     timeRange: null, 
     pcpValues: {},  
   });
+  const [filtersForUI, setFiltersForUI] = useState({
+    timeRange: null, 
+    pcpValues: {},
+  });
+  const [shouldRefetchData, setShouldRefetchData] = useState(false);
+  const updateFilters = useCallback((newFilters) => {
+    const prevFilters = { ...filtersRef.current };
+    filtersRef.current = { ...prevFilters, ...newFilters };
+    
+    const timeRangeChanged = 
+      (newFilters.timeRange !== undefined && 
+       JSON.stringify(newFilters.timeRange) !== JSON.stringify(prevFilters.timeRange));
+       
+    const pcpValuesChanged = 
+      (newFilters.pcpValues !== undefined && 
+       JSON.stringify(newFilters.pcpValues) !== JSON.stringify(prevFilters.pcpValues));
+    
+    if (timeRangeChanged || pcpValuesChanged) {
+      setFiltersForUI({ ...filtersRef.current });
+      setShouldRefetchData(true);
+    }
+  }, []);
 
-  const updateFilters = (newFilters) => {
-    setFilters((prev) => ({ ...prev, ...newFilters }));
-  };
+  const handlePCPSelect = useCallback((values) => {
+    updateFilters({ pcpValues: values });
+  }, [updateFilters]);
+  
+  const handleTimeRangeSelect = useCallback((range) => {
+    updateFilters({ timeRange: range });
+  }, [updateFilters]);
+
+  const resetFilters = useCallback(() => {
+    filtersRef.current = { timeRange: null, pcpValues: {} };
+    setFiltersForUI({ timeRange: null, pcpValues: {} });
+    setShouldRefetchData(true);
+  }, []);
 
   useEffect(() => {
-    // only add start/end if we've brushed a timeRange
+    if (!shouldRefetchData && filtersRef.current === filtersForUI) return;
+      setShouldRefetchData(false);
     const params = {};
     if (selectedState) params.state = selectedState;
+    
+    const filters = filtersRef.current;
     if (filters.timeRange) {
       params.startTime = filters.timeRange.start;
       params.endTime   = filters.timeRange.end;
     }
+    
     Object.entries(filters.pcpValues).forEach(([key, [min, max]]) => {
       params[`${key}_min`] = min;
       params[`${key}_max`] = max;
     });
+    
     const qs = new URLSearchParams(params).toString();
     
     // Load state data
@@ -82,11 +119,13 @@ export default function App() {
       })
       .finally(() => setTimeLoading(false));
 
-    // Load parallel coordinates data
-    fetch(`${API_BASE_URL}${ENDPOINTS.PARALLEL}?${qs}`)
-      .then((r) => r.json())
-      .then(setParData)
-      .catch((err) => console.error("Failed to load parallel data:", err));
+    // Load parallel coordinates data - do not reload if brushes are active to prevent data jumping
+    if (Object.keys(filters.pcpValues).length === 0) {
+      fetch(`${API_BASE_URL}${ENDPOINTS.PARALLEL}?${qs}`)
+        .then((r) => r.json())
+        .then(setParData)
+        .catch((err) => console.error("Failed to load parallel data:", err));
+    }
 
     // Load weekday data with loading state
     setWeekdayLoading(true);
@@ -203,13 +242,45 @@ export default function App() {
         setSunburstData(null);
       })
       .finally(() => setSunburstLoading(false));
-      
-  }, [selectedState, filters, themeColor]);
+  }, [selectedState, shouldRefetchData, themeColor, filtersForUI]);
+
+  useEffect(() => {
+    resetFilters();
+  }, [selectedState, resetFilters]);
 
   const stateOptions = stateData.map((d) => ({
     value: d.state,
     label: d.state,
   }));
+  
+  // Get active filter count for displaying in the filter panel
+  const getActiveFilterCount = () => {
+    let count = 0;
+    if (filtersForUI.timeRange) count++;
+    count += Object.keys(filtersForUI.pcpValues).length;
+    return count;
+  };
+  
+  // Format active filters for display
+  const formatActiveFilters = () => {
+    const filterTexts = [];
+    
+    if (filtersForUI.timeRange) {
+      filterTexts.push(`Time: ${filtersForUI.timeRange.start}:00 - ${filtersForUI.timeRange.end}:00`);
+    }
+    
+    Object.entries(filtersForUI.pcpValues).forEach(([key, [min, max]]) => {
+      filterTexts.push(`${key}: ${min.toFixed(1)} - ${max.toFixed(1)}`);
+    });
+    
+    return filterTexts;
+  };
+  
+  // Check if any filters are active
+  const hasActiveFilters = () => {
+    return filtersForUI.timeRange || Object.keys(filtersForUI.pcpValues).length > 0;
+  };
+
   return (
     <>
       <header
@@ -261,8 +332,37 @@ export default function App() {
             </span>
           </div>
           <h1 style={{ margin: 0 }}>Traffic Accident Analysis Dashboard</h1>
+          
+          {/* Active Filters Panel */}
+          {hasActiveFilters() && (
+            <div style={{
+              marginLeft: "15px",
+              fontSize: "0.8rem",
+              padding: "4px 8px",
+              background: themeColor === 'red' ? "rgba(204, 0, 0, 0.1)" :
+                         themeColor === 'yellow' ? "rgba(243, 156, 18, 0.1)" :
+                         "rgba(46, 204, 113, 0.1)",
+              borderRadius: "4px",
+              border: `1px solid ${themeColor === 'red' ? "#cc0000" : 
+                                   themeColor === 'yellow' ? "#f39c12" : 
+                                   "#2ecc71"}`,
+              display: "flex",
+              alignItems: "center"
+            }}>
+              <span style={{ fontWeight: "bold", marginRight: "8px" }}>
+                Active Filters: {getActiveFilterCount()}
+              </span>
+              {formatActiveFilters().slice(0, 1).map((filter, i) => (
+                <span key={i} style={{ marginRight: "8px" }}>{filter}</span>
+              ))}
+              {formatActiveFilters().length > 1 && (
+                <span>+{formatActiveFilters().length - 1} more</span>
+              )}
+            </div>
+          )}
         </div>
-        {(selectedState || filters.timeRange || Object.keys(filters.pcpValues).length > 0) && (
+        
+        {(selectedState || hasActiveFilters()) && (
           <div style={{ display: "flex", gap: "10px" }}>
             {selectedState && (
               <button
@@ -279,9 +379,9 @@ export default function App() {
                 Reset State
               </button>
             )}
-            {(filters.timeRange || Object.keys(filters.pcpValues).length > 0) && (
+            {hasActiveFilters() && (
               <button
-                onClick={() => setFilters({ timeRange: null, pcpValues: {} })}
+                onClick={resetFilters}
                 style={{
                   padding: "6px 12px",
                   fontSize: "0.9rem",
@@ -294,20 +394,24 @@ export default function App() {
                 Reset Filters
               </button>
             )}
-            {(selectedState || filters.timeRange || Object.keys(filters.pcpValues).length > 0) && (
+            {(selectedState || hasActiveFilters()) && (
               <button
                 onClick={() => {
                   setSelectedState(null);
-                  setFilters({ timeRange: null, pcpValues: {} });
+                  resetFilters();
                 }}
                 style={{
                   padding: "6px 12px",
                   fontSize: "0.9rem",
                   cursor: "pointer",
-                  border: "1px solid #cc0000",
+                  border: themeColor === 'red' ? "1px solid #cc0000" :
+                          themeColor === 'yellow' ? "1px solid #f39c12" :
+                          "1px solid #2ecc71",
                   borderRadius: "4px",
                   background: "#fff",
-                  color: "#cc0000",
+                  color: themeColor === 'red' ? "#cc0000" :
+                          themeColor === 'yellow' ? "#f39c12" :
+                          "#2ecc71",
                 }}
               >
                 Reset All
@@ -343,24 +447,46 @@ export default function App() {
           </div>
         )}
         <div className="chart-card">
-          <div className="chart-title">Time & Weekday Analysis</div>
+          <div className="chart-title">
+            Time & Weekday Analysis
+            {filtersForUI.timeRange && (
+              <span style={{ 
+                fontSize: "0.8rem", 
+                fontWeight: "normal", 
+                marginLeft: "8px",
+                color: "#666"
+              }}>
+                (Filtered: {filtersForUI.timeRange.start}:00 - {filtersForUI.timeRange.end}:00)
+              </span>
+            )}
+          </div>
           <TimeSeries
             hourlyData={timeData}
             weekdayData={weekdayData}
             hourlyLoading={timeLoading}
             weekdayLoading={weekdayLoading}
-            timeRange={filters.timeRange}
-            onTimeRangeSelect={(range) => updateFilters({ timeRange: range })}
+            timeRange={filtersForUI.timeRange}
+            onTimeRangeSelect={handleTimeRangeSelect}
             themeColor={themeColor}
           />
         </div>
         <div className="chart-card">
           <div className="chart-title">
             Severity / Distance / Hour Relationships
+            {Object.keys(filtersForUI.pcpValues).length > 0 && (
+              <span style={{ 
+                fontSize: "0.8rem", 
+                fontWeight: "normal", 
+                marginLeft: "8px",
+                color: "#666"
+              }}>
+                ({Object.keys(filtersForUI.pcpValues).length} dimensions filtered)
+              </span>
+            )}
           </div>
           <ParallelCoords 
             data={parData} 
-            onPCPSelect={(values) => updateFilters({ pcpValues: values })}
+            onPCPSelect={handlePCPSelect}
             themeColor={themeColor}
           />
         </div>
@@ -369,6 +495,16 @@ export default function App() {
             {selectedState 
               ? `${selectedState} County Distribution` 
               : "Top Counties Overall"}
+            {hasActiveFilters() && (
+              <span style={{ 
+                fontSize: "0.8rem", 
+                fontWeight: "normal", 
+                marginLeft: "8px",
+                color: "#666"
+              }}>
+                (Filtered data)
+              </span>
+            )}
           </div>
           <IntegratedVisualization
             countyData={countyData}
@@ -377,7 +513,9 @@ export default function App() {
             zipLoading={zipLoading}
             state={selectedState}
             height={500}
-            colorScheme="Reds"
+            colorScheme={themeColor === 'red' ? "Reds" : 
+                         themeColor === 'yellow' ? "Oranges" : 
+                         "Greens"}
             animated={true}
             treemapTitle={selectedState ? `${selectedState} Top Counties` : "Top Counties Overall"}
             barChartTitle={selectedState ? `${selectedState} Top ZIP Codes` : "Top ZIP Codes Overall"}
@@ -387,14 +525,14 @@ export default function App() {
         <div className="chart-card">
           <div className="chart-title">
             Accident Timeline Sunburst
-            {filters.timeRange && (
+            {hasActiveFilters() && (
               <span style={{ 
                 fontSize: "0.8rem", 
                 fontWeight: "normal", 
                 marginLeft: "8px",
                 color: "#666"
               }}>
-                (Time: {filters.timeRange.start}:00 - {filters.timeRange.end}:00)
+                (Filtered data)
               </span>
             )}
           </div>
@@ -405,10 +543,7 @@ export default function App() {
             width={500}
             height={500}
             filterInfo={
-              Object.keys(filters).some(key => 
-                filters[key] && 
-                (typeof filters[key] === 'object' ? Object.keys(filters[key]).length > 0 : true)
-              ) ? filters : null
+              hasActiveFilters() ? filtersForUI : null
             }
             themeColor={themeColor}
           />
@@ -416,14 +551,14 @@ export default function App() {
         <div className="chart-card">
           <div className="chart-title">
             Point of Interest Analysis
-            {filters.timeRange && (
+            {hasActiveFilters() && (
               <span style={{ 
                 fontSize: "0.8rem", 
                 fontWeight: "normal", 
                 marginLeft: "8px",
                 color: "#666"
               }}>
-                (Time: {filters.timeRange.start}:00 - {filters.timeRange.end}:00)
+                (Filtered data)
               </span>
             )}
           </div>
@@ -434,10 +569,7 @@ export default function App() {
             width={500}
             height={500}
             filterInfo={
-              Object.keys(filters).some(key => 
-                filters[key] && 
-                (typeof filters[key] === 'object' ? Object.keys(filters[key]).length > 0 : true)
-              ) ? filters : null
+              hasActiveFilters() ? filtersForUI : null
             }
             themeColor={themeColor}
           />

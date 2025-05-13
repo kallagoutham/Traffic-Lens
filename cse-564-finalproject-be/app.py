@@ -33,6 +33,57 @@ def filter_by_time(df, start_time, end_time):
         return df[(df['hour'] >= start_time) & (df['hour'] <= end_time)]
     return df
 
+def filter_by_pcp_values(df, args):
+    """Filter DataFrame by parallel coordinates plot parameters."""
+    filtered_df = df.copy()
+    
+    # List of potential PCP dimensions that might be filtered
+    pcp_dimensions = [
+        'Severity', 
+        'Temperature(F)', 
+        'Humidity(%)', 
+        'Pressure(in)',
+        'Visibility(mi)', 
+        'Wind_Speed(mph)', 
+        'Precipitation(in)'
+    ]
+    
+    # Check for min/max filters for each dimension
+    for dim in pcp_dimensions:
+        min_key = f"{dim}_min"
+        max_key = f"{dim}_max"
+        
+        if min_key in args and max_key in args and dim in filtered_df.columns:
+            try:
+                min_val = float(args.get(min_key))
+                max_val = float(args.get(max_key))
+                
+                # Apply the filter
+                filtered_df = filtered_df[(filtered_df[dim] >= min_val) & (filtered_df[dim] <= max_val)]
+            except (ValueError, TypeError):
+                # Skip if parameters aren't valid numbers
+                pass
+    
+    return filtered_df
+
+def apply_all_filters(state=None, args=None):
+    """Apply all filters to the DataFrame in the correct order."""
+    if args is None:
+        args = {}
+        
+    # Get state-filtered dataframe
+    df = get_df_for_state(state)
+    
+    # Apply time filter
+    start_time = args.get('startTime')
+    end_time = args.get('endTime')
+    df = filter_by_time(df, start_time, end_time)
+    
+    # Apply PCP dimension filters
+    df = filter_by_pcp_values(df, args)
+    
+    return df
+
 # ─── Health check ───────────────────────────────────────────────────────────
 @app.route('/api/health', methods=['GET'])
 def health_check():
@@ -41,9 +92,7 @@ def health_check():
 # ─── State counts ────────────────────────────────────────────────────────────
 @app.route('/api/state-count', methods=['GET'])
 def state_count():
-    start_time = request.args.get('startTime')
-    end_time = request.args.get('endTime')
-    df = filter_by_time(df_all, start_time, end_time)
+    df = apply_all_filters(args=request.args)
     data = (
         df['State']
         .value_counts()
@@ -57,9 +106,7 @@ def state_count():
 @app.route('/api/zip-count', methods=['GET'])
 def zip_count():
     state = request.args.get('state')
-    start_time = request.args.get('startTime')
-    end_time = request.args.get('endTime')
-    df = filter_by_time(get_df_for_state(state), start_time, end_time)
+    df = apply_all_filters(state, request.args)
     top10 = (
         df['Zipcode']
         .astype(str).str.slice(0, 5)
@@ -75,12 +122,12 @@ def zip_count():
 @app.route('/api/county-count', methods=['GET'])
 def county_count():
     state = request.args.get('state')
-    start_time = request.args.get('startTime')
-    end_time = request.args.get('endTime')
     limit = request.args.get('limit', default=15, type=int)
-    df = filter_by_time(get_df_for_state(state), start_time, end_time)
+    df = apply_all_filters(state, request.args)
+    
     if 'County' not in df.columns:
         return jsonify({"error": "County data not available"}), 404
+    
     top_counties = (
         df['County']
         .fillna('Unknown')
@@ -96,9 +143,7 @@ def county_count():
 @app.route('/api/hourly', methods=['GET'])
 def hourly():
     state = request.args.get('state')
-    start_time = request.args.get('startTime')
-    end_time = request.args.get('endTime')
-    df = filter_by_time(get_df_for_state(state), start_time, end_time)
+    df = apply_all_filters(state, request.args)
     data = (
         df.groupby('hour')
         .size()
@@ -111,9 +156,7 @@ def hourly():
 @app.route('/api/weekday-count', methods=['GET'])
 def weekday_count():
     state = request.args.get('state')
-    start_time = request.args.get('startTime')
-    end_time = request.args.get('endTime')
-    df = filter_by_time(get_df_for_state(state), start_time, end_time)
+    df = apply_all_filters(state, request.args)
     weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     counts = (
         df['weekday']
@@ -129,9 +172,16 @@ def weekday_count():
 @app.route('/api/parallel', methods=['GET'])
 def parallel():
     state = request.args.get('state')
+    df = apply_all_filters(state, request.args)
+    
+    # For PCP data, we don't want to apply PCP filters to itself
+    # This ensures the scales stay consistent
+    # So we only apply state and time filters
+    
     start_time = request.args.get('startTime')
     end_time = request.args.get('endTime')
     df = filter_by_time(get_df_for_state(state), start_time, end_time)
+    
     weather_attributes = [
         'Severity', 
         'Temperature(F)', 
@@ -150,9 +200,7 @@ def parallel():
 @app.route('/api/yearly-trend', methods=['GET'])
 def yearly_trend():
     state = request.args.get('state')
-    start_time = request.args.get('startTime')
-    end_time = request.args.get('endTime')
-    df = filter_by_time(get_df_for_state(state), start_time, end_time)
+    df = apply_all_filters(state, request.args)
     yearly = (
         df['year']
         .value_counts()
@@ -167,22 +215,28 @@ def yearly_trend():
 @app.route('/api/accident-locations', methods=['GET'])
 def accident_locations():
     state = request.args.get('state')
-    start_time = request.args.get('startTime')
-    end_time = request.args.get('endTime')
     if not state:
         return jsonify({"error": "State parameter is required"}), 400
+    
+    # For location data, we need to load from separate files
+    # So we can't use the standard filter function
     csv_path = f"../filtered_datasets/traffic-accident-filtered_{state}.csv"
     try:
         tdf = pd.read_csv(csv_path)
     except FileNotFoundError:
         return jsonify({"error": f"No data file for state '{state}'"}), 404
+    
+    # Process this dataframe
     tdf['Start_Time'] = pd.to_datetime(tdf['Start_Time'], errors='coerce')
-
-    # Add the 'hour' column to tdf
     tdf['hour'] = tdf['Start_Time'].dt.hour
 
-    # Apply the time filter
+    # Apply time filter
+    start_time = request.args.get('startTime')
+    end_time = request.args.get('endTime')
     tdf = filter_by_time(tdf, start_time, end_time)
+    
+    # Apply PCP filters if the columns exist in this dataset
+    tdf = filter_by_pcp_values(tdf, request.args)
 
     cols = ['Start_Lat', 'Start_Lng', 'Severity', 'Start_Time']
     if 'Description' in tdf.columns:
@@ -198,10 +252,7 @@ def accident_locations():
 @app.route('/api/sunburst', methods=['GET'])
 def sunburst_data():
     state = request.args.get('state')
-    start_time = request.args.get('startTime')
-    end_time = request.args.get('endTime')
-    df = get_df_for_state(state)
-    df = filter_by_time(df, start_time, end_time)
+    df = apply_all_filters(state, request.args)
 
     # drop rows missing Start_Time
     df = df.dropna(subset=['Start_Time'])
@@ -251,10 +302,8 @@ def sunburst_data():
 @app.route('/api/poi-data', methods=['GET'])
 def poi_data():
     state = request.args.get('state')
-    df = get_df_for_state(state)
-    start_time = request.args.get('startTime')
-    end_time = request.args.get('endTime')
-    df = filter_by_time(df, start_time, end_time)
+    df = apply_all_filters(state, request.args)
+    
     poi_columns = [
         'Amenity', 'Bump', 'Crossing', 'Give_Way', 'Junction', 
         'No_Exit', 'Railway', 'Roundabout', 'Station', 'Stop', 
@@ -268,7 +317,7 @@ def poi_data():
     poi_data = []
     for poi, count in poi_counts.items():
         if count > 0: 
-            percentage = round((count / total_accidents) * 100, 1)
+            percentage = round((count / total_accidents) * 100, 1) if total_accidents > 0 else 0
             poi_data.append({
                 'poi': poi,
                 'count': count,
@@ -288,6 +337,52 @@ def poi_data():
         'total_accidents': total_accidents
     }
     return jsonify(response), 200
+
+# Add a debug endpoint to see what filters are being applied
+@app.route('/api/debug-filters', methods=['GET'])
+def debug_filters():
+    """Debug endpoint to see what filters would be applied with current params."""
+    filter_params = {}
+    
+    for key, value in request.args.items():
+        filter_params[key] = value
+    
+    # Check which filters would be applied
+    applied_filters = []
+    
+    if 'state' in request.args and request.args.get('state') not in ('ALL', 'null', 'undefined'):
+        applied_filters.append(f"State: {request.args.get('state')}")
+    
+    if 'startTime' in request.args and 'endTime' in request.args:
+        applied_filters.append(f"Time: {request.args.get('startTime')}:00 - {request.args.get('endTime')}:00")
+    
+    # Check PCP filters
+    pcp_dimensions = [
+        'Severity', 
+        'Temperature(F)', 
+        'Humidity(%)', 
+        'Pressure(in)',
+        'Visibility(mi)', 
+        'Wind_Speed(mph)', 
+        'Precipitation(in)'
+    ]
+    
+    for dim in pcp_dimensions:
+        min_key = f"{dim}_min"
+        max_key = f"{dim}_max"
+        
+        if min_key in request.args and max_key in request.args:
+            try:
+                min_val = float(request.args.get(min_key))
+                max_val = float(request.args.get(max_key))
+                applied_filters.append(f"{dim}: {min_val} - {max_val}")
+            except (ValueError, TypeError):
+                pass
+    
+    return jsonify({
+        "filter_params": filter_params,
+        "applied_filters": applied_filters,
+    }), 200
 
 if __name__ == "__main__":
     app.run(debug=True)
