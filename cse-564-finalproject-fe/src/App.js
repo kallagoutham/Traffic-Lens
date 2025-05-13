@@ -23,26 +23,43 @@ export default function App() {
   const [countyData, setCountyData] = useState([]);
   const [countyLoading, setCountyLoading] = useState(false);
   const [zipLoading, setZipLoading] = useState(false);
+  const [filters, setFilters] = useState({
+    timeRange: null, 
+    pcpValues: {},  
+  });
 
-
-  const qs = selectedState ? `?state=${selectedState}` : "";
+  const updateFilters = (newFilters) => {
+    setFilters((prev) => ({ ...prev, ...newFilters }));
+  };
 
   useEffect(() => {
+    // only add start/end if we’ve brushed a timeRange
+    const params = {};
+    if (selectedState) params.state = selectedState;
+    if (filters.timeRange) {
+      params.startTime = filters.timeRange.start;
+      params.endTime   = filters.timeRange.end;
+    }
+    Object.entries(filters.pcpValues).forEach(([key, [min, max]]) => {
+      params[`${key}_min`] = min;
+      params[`${key}_max`] = max;
+    });
+    const qs = new URLSearchParams(params).toString();
     // Load state data
-    fetch(`${API_BASE_URL}${ENDPOINTS.STATE_COUNT}${qs}`)
+    fetch(`${API_BASE_URL}${ENDPOINTS.STATE_COUNT}?${qs}`)
       .then((r) => r.json())
       .then(setStateData)
       .catch((err) => console.error("Failed to load state data:", err));
 
     // Load ZIP code data
-    fetch(`${API_BASE_URL}${ENDPOINTS.ZIP_COUNT}${qs}`)
+    fetch(`${API_BASE_URL}${ENDPOINTS.ZIP_COUNT}?${qs}`)
       .then((r) => r.json())
       .then(setZipData)
       .catch((err) => console.error("Failed to load ZIP data:", err));
 
     // Load hourly data with loading state
     setTimeLoading(true);
-    fetch(`${API_BASE_URL}${ENDPOINTS.HOURLY}${qs}`)
+    fetch(`${API_BASE_URL}${ENDPOINTS.HOURLY}?${qs}`)
       .then((r) => r.json())
       .then(setTimeData)
       .catch((err) => {
@@ -52,14 +69,14 @@ export default function App() {
       .finally(() => setTimeLoading(false));
 
     // Load parallel coordinates data
-    fetch(`${API_BASE_URL}${ENDPOINTS.PARALLEL}${qs}`)
+    fetch(`${API_BASE_URL}${ENDPOINTS.PARALLEL}?${qs}`)
       .then((r) => r.json())
       .then(setParData)
       .catch((err) => console.error("Failed to load parallel data:", err));
 
     // Load weekday data with loading state
     setWeekdayLoading(true);
-    fetch(`${API_BASE_URL}${ENDPOINTS.WEEKDAY_COUNT}${qs}`)
+    fetch(`${API_BASE_URL}${ENDPOINTS.WEEKDAY_COUNT}?${qs}`)
       .then((r) => r.json())
       .then((data) => setWeekdayData(data))
       .catch((err) => {
@@ -70,7 +87,7 @@ export default function App() {
 
     if (selectedState) {
       setLocationLoading(true);
-      fetch(`${API_BASE_URL}${ENDPOINTS.ACCIDENT_LOCATIONS}${qs}`)
+      fetch(`${API_BASE_URL}${ENDPOINTS.ACCIDENT_LOCATIONS}?${qs}`)
         .then((r) => r.json())
         .then((data) => setLocationData(data))
         .catch((err) => {
@@ -84,7 +101,7 @@ export default function App() {
 
     // Load county data - works with or without selected state
     setCountyLoading(true);
-    fetch(`${API_BASE_URL}${ENDPOINTS.COUNTY_COUNT}${qs}`)
+    fetch(`${API_BASE_URL}${ENDPOINTS.COUNTY_COUNT}?${qs}`)
       .then((r) => r.json())
       .then((data) => setCountyData(data))
       .catch((err) => {
@@ -92,7 +109,7 @@ export default function App() {
         setCountyData([]);
       })
       .finally(() => setCountyLoading(false));
-  }, [qs, selectedState]);
+  }, [selectedState,filters]);
 
   const stateOptions = stateData.map((d) => ({
     value: d.state,
@@ -157,13 +174,16 @@ export default function App() {
             weekdayData={weekdayData}
             hourlyLoading={timeLoading}
             weekdayLoading={weekdayLoading}
+            timeRange={filters.timeRange}
+            onTimeRangeSelect={(range) => updateFilters({ timeRange: range })}
           />
         </div>
         <div className="chart-card">
           <div className="chart-title">
             Severity / Distance / Hour Relationships
           </div>
-          <ParallelCoords data={parData} />
+          <ParallelCoords data={parData} onPCPSelect={(values) => updateFilters({ pcpValues: values })}
+/>
         </div>
          <div className="chart-card">
           <div className="chart-title">
