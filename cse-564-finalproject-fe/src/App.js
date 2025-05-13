@@ -1,4 +1,3 @@
-// Modified App.js to avoid re-render loops with PCP component
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import MapChart from "./components/MapChart";
 import TimeSeries from "./components/TimeSeries";
@@ -45,6 +44,11 @@ export default function App() {
     pcpValues: {},
   });
   const [shouldRefetchData, setShouldRefetchData] = useState(false);
+  
+  // References to component reset functions
+  const pcpResetRef = useRef(null);
+  const timeSeriesResetRef = useRef(null);
+  
   const updateFilters = useCallback((newFilters) => {
     const prevFilters = { ...filtersRef.current };
     filtersRef.current = { ...prevFilters, ...newFilters };
@@ -63,17 +67,39 @@ export default function App() {
     }
   }, []);
 
+  // Handle PCP selection with ref for reset function
   const handlePCPSelect = useCallback((values) => {
     updateFilters({ pcpValues: values });
   }, [updateFilters]);
   
+  // Save the reset function from PCP component
+  const savePCPResetFunction = useCallback((resetFunction) => {
+    pcpResetRef.current = resetFunction;
+  }, []);
+  
   const handleTimeRangeSelect = useCallback((range) => {
     updateFilters({ timeRange: range });
   }, [updateFilters]);
+  
+  // Save the reset function from TimeSeries component
+  const saveTimeSeriesResetFunction = useCallback((resetFunction) => {
+    timeSeriesResetRef.current = resetFunction;
+  }, []);
 
   const resetFilters = useCallback(() => {
+    // Reset the filter state
     filtersRef.current = { timeRange: null, pcpValues: {} };
     setFiltersForUI({ timeRange: null, pcpValues: {} });
+    
+    // Call component-specific reset functions if available
+    if (pcpResetRef.current && typeof pcpResetRef.current === 'function') {
+      pcpResetRef.current();
+    }
+    
+    if (timeSeriesResetRef.current && typeof timeSeriesResetRef.current === 'function') {
+      timeSeriesResetRef.current();
+    }
+    
     setShouldRefetchData(true);
   }, []);
 
@@ -281,6 +307,18 @@ export default function App() {
     return filtersForUI.timeRange || Object.keys(filtersForUI.pcpValues).length > 0;
   };
 
+  // Setup PCP callbacks with reset function 
+  const pcpSelectWithReset = useCallback((values) => {
+    handlePCPSelect(values);
+  }, [handlePCPSelect]);
+  
+  // After the handlePCPSelect function is called, we'll register its resetBrushes method
+  useEffect(() => {
+    if (pcpSelectWithReset.resetBrushes) {
+      savePCPResetFunction(pcpSelectWithReset.resetBrushes);
+    }
+  }, [pcpSelectWithReset, savePCPResetFunction]);
+
   return (
     <>
       <header
@@ -486,7 +524,7 @@ export default function App() {
           </div>
           <ParallelCoords 
             data={parData} 
-            onPCPSelect={handlePCPSelect}
+            onPCPSelect={pcpSelectWithReset}
             themeColor={themeColor}
           />
         </div>

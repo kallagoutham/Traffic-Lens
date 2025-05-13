@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import * as d3 from "d3";
 
 export default function ParallelCoords({
   data = [],
   loading = false,
+  onPCPSelect = () => {},
   theme = {
     background: "#ffffff",
     text: "#333333",
@@ -22,6 +23,8 @@ export default function ParallelCoords({
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [orderedDimensions, setOrderedDimensions] = useState([]);
   const [draggedDimension, setDraggedDimension] = useState(null);
+  const [activeBrushes, setActiveBrushes] = useState({});
+  const brushGroupRef = useRef();
 
   const initialDimensions = [
     "Severity",
@@ -31,6 +34,19 @@ export default function ParallelCoords({
     "Wind_Speed(mph)",
     "Precipitation(in)",
   ];
+
+  // Reset brushes when filters are reset from App.js
+  const resetBrushes = useCallback(() => {
+    if (brushGroupRef.current) {
+      d3.select(brushGroupRef.current)
+        .selectAll(".brush")
+        .each(function(d) {
+          d3.select(this).call(d.brush.move, null);
+        });
+    }
+    setActiveBrushes({});
+    onPCPSelect({});
+  }, [onPCPSelect]);
 
   useEffect(() => {
     if (orderedDimensions.length === 0 && data.length > 0) {
@@ -281,6 +297,7 @@ export default function ParallelCoords({
         return yScales[dim](d);
       })
       .curve(d3.curveMonotoneX);
+    
     let colorScale;
 
     if (themeColor === "red") {
@@ -306,6 +323,16 @@ export default function ParallelCoords({
         .interpolator(d3.interpolateRgb("#f8c0c0", "#cd0505"));
     }
 
+    // Function to determine if a data point is within all active brushes
+    const isWithinBrushes = (d) => {
+      if (Object.keys(activeBrushes).length === 0) return true;
+      
+      return Object.entries(activeBrushes).every(([dim, [min, max]]) => {
+        const value = d[dim];
+        return value >= min && value <= max;
+      });
+    };
+
     const linesGroup = g.append("g").attr("class", "lines-group");
     linesGroup
       .selectAll(".pc-line")
@@ -325,7 +352,12 @@ export default function ParallelCoords({
       .attr("stroke-linecap", "round")
       .attr("stroke-linejoin", "round")
       .style("cursor", "pointer")
-      .style("transition", "stroke-width 0.2s, opacity 0.2s");
+      .style("transition", "stroke-width 0.2s, opacity 0.2s")
+      .classed("filtered-out", d => !isWithinBrushes(d));
+      
+    // Apply filtering based on active brushes
+    linesGroup.selectAll(".pc-line")
+      .attr("visibility", d => isWithinBrushes(d) ? "visible" : "hidden");
 
     const tooltip = svg
       .append("g")
@@ -360,6 +392,8 @@ export default function ParallelCoords({
     linesGroup
       .selectAll(".pc-line")
       .on("mouseover", function (event, d) {
+        if (!isWithinBrushes(d)) return; // Skip tooltip for filtered out lines
+        
         d3.select(this)
           .raise()
           .attr("stroke", (d) => {
@@ -370,7 +404,7 @@ export default function ParallelCoords({
           .attr("opacity", 1);
         linesGroup
           .selectAll(".pc-line")
-          .filter((p) => p !== d)
+          .filter((p) => p !== d && isWithinBrushes(p))
           .attr("opacity", 0.15);
 
         tooltipHeader.text(`Incident Severity: ${d.Severity || "N/A"}`);
@@ -444,7 +478,7 @@ export default function ParallelCoords({
       })
       .on("mouseout", function () {
         linesGroup
-          .selectAll(".pc-line")
+          .selectAll(".pc-line:not(.filtered-out)")
           .attr("stroke", (d) => {
             const severity = d.Severity || 1;
             return d3.color(colorScale(severity)).copy({ opacity: 0.35 });
@@ -454,7 +488,95 @@ export default function ParallelCoords({
         tooltip.transition().duration(200).style("opacity", 0);
       });
 
-    // Add a dragging instruction note
+    // Add brushing capabilities
+    const brushGroup = g.append("g").attr("class", "brush-group");
+    brushGroupRef.current = brushGroup.node();
+    
+    // Create brush for each dimension
+    orderedDimensions.forEach(dim => {
+      const brushWidth = 30;
+      
+      // Create a brush for this dimension
+      const brush = d3.brushY()
+        .extent([
+          [x(dim) - brushWidth / 2, 0],
+          [x(dim) + brushWidth / 2, innerHeight]
+        ])
+        .on("start brush end", function(event) {
+          if (event.selection) {
+            // Convert the brush's pixel positions to data domain values
+            const [y0, y1] = event.selection;
+            const domainValues = [y1, y0].map(yScales[dim].invert);
+            
+            // Update active brushes
+            const newActiveBrushes = {...activeBrushes};
+            newActiveBrushes[dim] = domainValues;
+            setActiveBrushes(newActiveBrushes);
+            
+            // Update lines visibility
+            linesGroup.selectAll(".pc-line")
+              .attr("visibility", d => {
+                const newBrushes = {...activeBrushes, [dim]: domainValues};
+                return Object.entries(newBrushes).every(([dimension, [min, max]]) => {
+                  const value = d[dimension];
+                  return value >= min && value <= max;
+                }) ? "visible" : "hidden";
+              });
+              
+            // Notify parent component of the brush selection
+            onPCPSelect(newActiveBrushes);
+          } else if (event.type === 'end' && !event.selection) {
+            // Brush was cleared
+            const newActiveBrushes = {...activeBrushes};
+            delete newActiveBrushes[dim];
+            setActiveBrushes(newActiveBrushes);
+            
+            // Update lines visibility
+            linesGroup.selectAll(".pc-line")
+              .attr("visibility", d => {
+                return Object.entries(newActiveBrushes).every(([dimension, [min, max]]) => {
+                  const value = d[dimension];
+                  return value >= min && value <= max;
+                }) ? "visible" : "hidden";
+              });
+              
+            // If all brushes were cleared, show all lines
+            if (Object.keys(newActiveBrushes).length === 0) {
+              linesGroup.selectAll(".pc-line").attr("visibility", "visible");
+            }
+            
+            // Notify parent component of the brush selection
+            onPCPSelect(newActiveBrushes);
+          }
+        });
+      
+      // Create a group for this dimension's brush
+      const brushSelection = brushGroup.append("g")
+        .attr("class", "brush")
+        .attr("data-dimension", dim)
+        .datum({brush}) // Attach the brush to the element's data
+        .call(brush);
+        
+      // Style the brush
+      brushSelection.selectAll(".selection")
+        .attr("fill", d3.color(themeColor === "red" ? "#cc0000" : 
+                               themeColor === "yellow" ? "#f39c12" : 
+                               "#2ecc71").copy({opacity: 0.3}))
+        .attr("stroke", themeColor === "red" ? "#cc0000" : 
+                         themeColor === "yellow" ? "#f39c12" : 
+                         "#2ecc71")
+        .attr("stroke-width", 1);
+        
+      // If there's an active brush for this dimension, set it
+      if (activeBrushes[dim]) {
+        const [min, max] = activeBrushes[dim];
+        const y0 = yScales[dim](min);
+        const y1 = yScales[dim](max);
+        brushSelection.call(brush.move, [y1, y0]);
+      }
+    });
+
+    // Add a brushing instruction note
     svg
       .append("text")
       .attr("x", margin.left)
@@ -463,8 +585,21 @@ export default function ParallelCoords({
       .attr("font-size", "11px")
       .attr("font-style", "italic")
       .attr("fill", theme.axes)
-      .attr("opacity", 0.8);
-  }, [data, dimensions, orderedDimensions, draggedDimension, theme]);
+      .attr("opacity", 0.8)
+  }, [data, dimensions, orderedDimensions, draggedDimension, theme, activeBrushes, themeColor, onPCPSelect]);
+
+  useEffect(() => {
+    if (typeof onPCPSelect === 'function') {
+      onPCPSelect.resetBrushes = resetBrushes;
+    }
+    
+    return () => {
+      // Clean up when component unmounts
+      if (typeof onPCPSelect === 'function') {
+        delete onPCPSelect.resetBrushes;
+      }
+    };
+  }, [resetBrushes, onPCPSelect]);
 
   const loadingOverlay = loading ? (
     <div
