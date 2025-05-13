@@ -68,20 +68,14 @@ const RadialBarChart = ({ selectedState, width = 600, height = 400 }) => {
       ref={chartRef}
       style={{
         position: "relative",
-        background: "#fff",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
         padding: 10
       }}
     >
       <svg width={width} height={height}>
-        {/* Title */}
-        <text x={20} y={20} fontSize={14} fontWeight="bold" fill="#333">
-          POINT OF INTEREST ANALYSIS
-        </text>
         {/* ----- Radial Bars ----- */}
         {(() => {
-          const centerX = width * 0.35;
-          const centerY = height * 0.5;
+          const centerX = width * 0.6;
+          const centerY = height * 0.4;
           const maxR    = Math.min(width, height) * 0.35;
           const innerR  = maxR * 0.35;
           const barW    = (maxR - innerR) / (topPoi.length + 0.5);
@@ -109,7 +103,7 @@ const RadialBarChart = ({ selectedState, width = 600, height = 400 }) => {
                 const pct         = item.count / Math.max(...topPoi.map(d=>d.count));
                 const arcPct      = Math.max(0.15, pct)*0.4; // ensure min visibility
                 const dashLength  = arcPct*c;
-                const startAngle  = -60;
+                const startAngle  = -90;
                 return (
                   <circle
                     key={item.poi}
@@ -153,11 +147,11 @@ const RadialBarChart = ({ selectedState, width = 600, height = 400 }) => {
                 const y = centerY - (maxR - i*(barW+2)) + 4;
                 return (
                   <g key={item.poi}>
-                    <circle cx={centerX - maxR - 20} cy={y} r={4}
+                    <circle cx={centerX - maxR - 110} cy={y} r={4}
                       fill={["#b25dd6","#cdcdcd","#f96b69","#72c556","#f8d950"][i]}
                     />
                     <text
-                      x={centerX - maxR - 12}
+                      x={centerX - maxR - 98}
                       y={y}
                       fontSize={12}
                       fill="#555"
@@ -167,7 +161,7 @@ const RadialBarChart = ({ selectedState, width = 600, height = 400 }) => {
                       {item.poi.replace(/_/g," ")}
                     </text>
                     <text
-                      x={centerX - maxR + 48}
+                      x={centerX - maxR - 20}
                       y={y}
                       fontSize={12}
                       fill="#333"
@@ -186,10 +180,10 @@ const RadialBarChart = ({ selectedState, width = 600, height = 400 }) => {
 
         {/* ----- Yes/No Bar ----- */}
         {(() => {
-          const barW = 80;
-          const barH = height * 0.65;
-          const x0   = width * 0.72;
-          const y0   = (height-barH)/2;
+          const barW = 60;
+          const barH = height * 0.5;
+          const x0   = width * 1.05;
+          const y0   = (height-barH)/3.5;
           const noH  = (noItem.percentage/100)*barH;
           const yesH = (yesItem.percentage/100)*barH;
           return (
