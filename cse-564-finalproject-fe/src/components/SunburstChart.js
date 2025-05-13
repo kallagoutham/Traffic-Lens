@@ -93,29 +93,6 @@ export default function SunburstChart({
       .attr("font-size", "18px")
       .attr("font-weight", "bold")
       .attr("fill", "#343a40");    
-    // If there are active filters, add subtitle
-    if (filterInfo && (filterInfo.timeRange || Object.keys(filterInfo.pcpValues).length > 0)) {
-      svg
-        .append("text")
-        .attr("x", width / 2)
-        .attr("y", 55)
-        .attr("text-anchor", "middle")
-        .attr("font-size", "14px")
-        .attr("fill", "#6c757d")
-        .text(() => {
-          const filterTexts = [];
-          if (filterInfo.timeRange) {
-            filterTexts.push(`Time: ${filterInfo.timeRange.start}:00-${filterInfo.timeRange.end}:00`);
-          }
-          if (filterInfo.pcpValues && Object.keys(filterInfo.pcpValues).length > 0) {
-            const pcpFilter = Object.entries(filterInfo.pcpValues)
-              .map(([key, [min, max]]) => `${key}: ${min.toFixed(1)}-${max.toFixed(1)}`)
-              .join(", ");
-            filterTexts.push(pcpFilter);
-          }
-          return filterTexts.join(" | ");
-        });
-    }
 
     const g = svg
       .append("g")
