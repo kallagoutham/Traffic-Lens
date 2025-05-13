@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import pandas as pd
 import glob
+import calendar
 
 app = Flask(__name__)
 CORS(app)
@@ -165,6 +166,57 @@ def accident_locations():
     filtered['Start_Time'] = filtered['Start_Time'].dt.strftime('%Y-%m-%dT%H:%M:%SZ')
     records = filtered.to_dict(orient='records')
     return jsonify(records), 200
+
+# ─── Seasonal data ────────────────────────────────────────────────────────────
+@app.route('/api/sunburst', methods=['GET'])
+def sunburst_data():
+    state = request.args.get('state')
+    df = get_df_for_state(state)
+
+    # drop rows missing Start_Time
+    df = df.dropna(subset=['Start_Time'])
+
+    # derive month & weekday
+    df['month']   = df['Start_Time'].dt.month
+    df['weekday'] = df['Start_Time'].dt.day_name()
+
+    # map month → season
+    def to_season(m):
+        if m in (12, 1, 2):   return 'Winter'
+        if m in (3, 4, 5):    return 'Spring'
+        if m in (6, 7, 8):    return 'Summer'
+        return 'Fall'
+    df['season'] = df['month'].apply(to_season)
+
+    # count by season → month → weekday
+    groups = df.groupby(['season','month','weekday']).size()
+
+    # 1) build intermediate dict
+    seasons = {}
+    for (season, month, weekday), cnt in groups.items():
+        seasons\
+          .setdefault(season, {})\
+          .setdefault(month, {})[weekday] = int(cnt)
+
+    # 2) convert to D3-style tree
+    tree = {'name': 'All', 'children': []}
+    for season, months in seasons.items():
+        s_node = {'name': season, 'children': []}
+        for month, weekdays in months.items():
+            m_node = {
+                'name': calendar.month_name[month],
+                'children': []
+            }
+            for wd, cnt in weekdays.items():
+                # weekday leaf with value
+                m_node['children'].append({
+                    'name': wd,
+                    'value': cnt
+                })
+            s_node['children'].append(m_node)
+        tree['children'].append(s_node)
+
+    return jsonify(tree), 200
 
 if __name__ == "__main__":
     app.run(debug=True)

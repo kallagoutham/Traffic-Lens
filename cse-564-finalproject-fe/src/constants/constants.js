@@ -8,6 +8,7 @@ export const ENDPOINTS = {
     YEARLY_TREND: '/api/yearly-trend',
     WEEKDAY_COUNT: '/api/weekday-count',
     COUNTY_COUNT: '/api/county-count',
+    SUNBURST: "/api/sunburst",
     ACCIDENT_LOCATIONS: '/api/accident-locations',
     STATE_ZIP:    state => `/api/state/${state}/zip-count`,
     STATE_HOURLY: state => `/api/state/${state}/hourly`,

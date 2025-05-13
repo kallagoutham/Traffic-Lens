@@ -5,6 +5,7 @@ import ParallelCoords from "./components/ParallelCoords";
 import { API_BASE_URL, ENDPOINTS } from "./constants/constants";
 import StateDetailMap from "./components/StateDetailMap";
 import IntegratedVisualization from "./components/IntegratedVisualization";
+import SunburstChart from "./components/SunburstChart";
 
 export default function App() {
   const [stateData, setStateData] = useState([]);
@@ -180,6 +181,16 @@ export default function App() {
             animated={true}
             treemapTitle={selectedState ? `${selectedState} Top Counties` : "Top Counties Overall"}
             barChartTitle={selectedState ? `${selectedState} Top ZIP Codes` : "Top ZIP Codes Overall"}
+          />
+        </div>
+        <div className="chart-card">
+          <div className="chart-title">
+            Accident Timeline Sunburst
+          </div>
+          <SunburstChart
+            selectedState={selectedState}
+            width={500}
+            height={500}
           />
         </div>
       </div>
