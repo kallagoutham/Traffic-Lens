@@ -28,6 +28,7 @@ export default function ParallelCoords({
     "Humidity(%)",
     "Visibility(mi)",
     "Wind_Speed(mph)",
+    'Precipitation(in)'
   ];
 
   useEffect(() => {
@@ -81,7 +82,7 @@ export default function ParallelCoords({
 
     svg.selectAll("*").remove();
 
-    const margin = { top: 50, right: 60, bottom: 30, left: 40 };
+    const margin = { top: 35, right: 42, bottom: 18, left: 33 };
     const innerWidth = dimensions.width - margin.left - margin.right;
     const innerHeight = dimensions.height - margin.top - margin.bottom;
 
@@ -384,9 +385,7 @@ export default function ParallelCoords({
             });
         });
 
-        // Position and show tooltip
         const [mouseX, mouseY] = d3.pointer(event, svg.node());
-
         let tooltipX = mouseX + 15;
         let tooltipY = mouseY - 70;
         if (tooltipX + 160 > dimensions.width) {
