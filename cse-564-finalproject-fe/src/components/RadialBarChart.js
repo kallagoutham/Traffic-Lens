@@ -1,254 +1,253 @@
 // components/RadialBarChart.js
 import React, { useEffect, useState, useRef } from "react";
-import * as d3 from "d3";
 import { API_BASE_URL, ENDPOINTS } from "../constants/constants";
 
-const RadialBarChart = ({ selectedState, width = 600, height = 500 }) => {
+const RadialBarChart = ({ selectedState, width = 600, height = 400 }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [tooltip, setTooltip] = useState({ show: false, content: "", x: 0, y: 0 });
   const chartRef = useRef(null);
 
-  const sampleData = {
-    poi_data: [
-      { poi: "Traffic_Signal", percentage: 10.2, count: 2234 },
-      { poi: "Crossing",        percentage:  9.2, count: 2016 },
-      { poi: "Junction",        percentage:  7.3, count: 1599 },
-      { poi: "Station",         percentage:  2.5, count:  548 },
-      { poi: "Stop",            percentage:  2.4, count:  526 }
-    ],
-    yes_no_data: [
-      { category: "Yes", percentage: 3 },
-      { category: "No",  percentage: 97 }
-    ],
-    total_accidents: 21901
-  };
-
-  // Fetch POI data
   useEffect(() => {
-    setLoading(true);
-    fetch(`${API_BASE_URL}${ENDPOINTS.POI_DATA}${selectedState ? `?state=${selectedState}` : ""}`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`Status ${r.status}`);
-        return r.json();
-      })
-      .then((json) => {
-        setData(json);
-        setLoading(false);
-      })
-      .catch((err) => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const qs = selectedState ? `?state=${selectedState}` : "";
+        const response = await fetch(`${API_BASE_URL}${ENDPOINTS.POI_DATA}${qs}`);
+        if (!response.ok) throw new Error(`Status: ${response.status}`);
+        const result = await response.json();
+        // compute counts if missing
+        if (result.yes_no_data && result.total_accidents) {
+          result.yes_no_data = result.yes_no_data.map(item => ({
+            ...item,
+            count: item.count ?? Math.round(item.percentage/100 * result.total_accidents)
+          }));
+        }
+        setData(result);
+      } catch (err) {
         console.error(err);
         setError("Failed to load POI data");
-        setData(sampleData);
+        setData(null);
+      } finally {
         setLoading(false);
-      });
-  }, [selectedState]);
-
-  // hide tooltip on outside click
-  useEffect(() => {
-    const onClick = (e) => {
-      if (chartRef.current && !chartRef.current.contains(e.target)) {
-        setTooltip((t) => ({ ...t, show: false }));
       }
     };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
+    fetchData();
+  }, [selectedState]);
+
+  // close tooltip on outside click
+  useEffect(() => {
+    const handleClick = e => {
+      if (chartRef.current && !chartRef.current.contains(e.target)) {
+        setTooltip(t => ({ ...t, show: false }));
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
   if (loading) {
-    return (
-      <div style={{ height, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div>Loading POI data…</div>
-      </div>
-    );
+    return <div style={{ textAlign: "center", padding: 20 }}>Loading POI data…</div>;
+  }
+  if (error) {
+    return <div style={{ color: "red", textAlign: "center", padding: 20 }}>{error}</div>;
+  }
+  if (!data) {
+    return <div style={{ textAlign: "center", padding: 20 }}>No data to display</div>;
   }
 
-  const chartData = data.poi_data && data.poi_data.length ? data : sampleData;
-  const centerX = width / 2 - 50;
-  const centerY = height / 2;
-  const outerRadius = Math.min(width, height) * 0.35;
-  const innerRadius = outerRadius * 0.3;
+  const topPoi = data.poi_data.slice(0, 5);
+  const total = data.total_accidents;
+  const yesItem = data.yes_no_data.find(d => d.category === "Yes") || { percentage:0, count:0 };
+  const noItem  = data.yes_no_data.find(d => d.category === "No")  || { percentage:0, count:0 };
 
-  // prepare scales
-  const maxPct = d3.max(chartData.poi_data, (d) => d.percentage) || 0;
-  const rScale = d3
-    .scaleLinear()
-    .domain([0, maxPct])
-    .range([innerRadius, outerRadius]);
-
-  const angles = chartData.poi_data.slice(0, 5);
-  const angleStep = (2 * Math.PI) / angles.length;
-
-  const colors = ["#b25dd6", "#cdcdcd", "#f96b69", "#72c556", "#f8d950"];
-
+  // render the two charts
   return (
-    <div ref={chartRef} style={{ position: "relative", width, height }}>
+    <div 
+      ref={chartRef}
+      style={{
+        position: "relative",
+        background: "#fff",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+        padding: 10
+      }}
+    >
       <svg width={width} height={height}>
         {/* Title */}
-        <text x={centerX} y={30} textAnchor="middle" fontSize="16" fontWeight="bold">
+        <text x={20} y={20} fontSize={14} fontWeight="bold" fill="#333">
           POINT OF INTEREST ANALYSIS
         </text>
-
-        {/* Gray backdrop circle */}
-        <circle
-          cx={centerX}
-          cy={centerY}
-          r={outerRadius + 10}
-          fill="#fcfcfc"
-          stroke="#eaeaea"
-        />
-
-        {/* Radial bars */}
-        {chartData.poi_data.slice(0, 5).map((d, i) => {
-          const start = -Math.PI / 2 + i * angleStep;
-          const end = start + angleStep * 0.8; // small gap
-          const arcGen = d3
-            .arc()
-            .innerRadius(innerRadius)
-            .outerRadius(rScale(d.percentage))
-            .startAngle(start)
-            .endAngle(end)
-            .padAngle(0.02)
-            .padRadius(innerRadius);
-
-          // tooltip position at midpoint of arc
-          const mid = (start + end) / 2;
-          const tx = centerX + (rScale(d.percentage) + 10) * Math.cos(mid);
-          const ty = centerY + (rScale(d.percentage) + 10) * Math.sin(mid);
-
-          return (
-            <g key={d.poi}>
-              <path
-                d={arcGen()}
-                fill={colors[i]}
-                stroke="#fff"
-                strokeWidth={1}
-                onMouseEnter={(e) =>
-                  setTooltip({
-                    show: true,
-                    content: `${d.poi.replace("_", " ")}: ${d.count.toLocaleString()} (${d.percentage}%)`,
-                    x: e.clientX,
-                    y: e.clientY,
-                  })
-                }
-                onMouseLeave={() => setTooltip((t) => ({ ...t, show: false }))}
-                style={{ cursor: "pointer" }}
-              />
-              {/* Label */}
-              <text
-                x={centerX + (outerRadius + 20) * Math.cos(mid)}
-                y={centerY + (outerRadius + 20) * Math.sin(mid)}
-                textAnchor={Math.cos(mid) > 0 ? "start" : "end"}
-                alignmentBaseline="middle"
-                fontSize="12"
-                fill="#333"
-              >
-                {d.poi.replace("_", " ")} ({d.percentage}%)
-              </text>
-            </g>
-          );
-        })}
-
-        {/* Center circle */}
-        <circle
-          cx={centerX}
-          cy={centerY}
-          r={innerRadius - 5}
-          fill="#fff"
-          stroke="#ddd"
-          strokeWidth={1}
-        />
-        {/* Total */}
-        <text x={centerX} y={centerY - 10} textAnchor="middle" fontSize="12" fill="#666">
-          Total
-        </text>
-        <text x={centerX} y={centerY + 12} textAnchor="middle" fontSize="20" fontWeight="bold">
-          {chartData.total_accidents.toLocaleString()}
-        </text>
-
-        {/* Yes/No vertical bar */}
+        {/* ----- Radial Bars ----- */}
         {(() => {
-          const barW = 60;
-          const barH = height * 0.5;
-          const x0 = width - barW - 40;
-          const y0 = centerY - barH / 2;
-          const yes = chartData.yes_no_data.find((x) => x.category === "Yes")?.percentage || 0;
-          const no = chartData.yes_no_data.find((x) => x.category === "No")?.percentage || 0;
-          const noH = (no / 100) * barH;
-          const yesH = (yes / 100) * barH;
-
+          const centerX = width * 0.35;
+          const centerY = height * 0.5;
+          const maxR    = Math.min(width, height) * 0.35;
+          const innerR  = maxR * 0.35;
+          const barW    = (maxR - innerR) / (topPoi.length + 0.5);
+          // background circle + guides
           return (
             <g>
-              {/* bar bg */}
-              <rect x={x0} y={y0} width={barW} height={barH} fill="#f8f8f8" rx={4} />
-              {/* No */}
-              <rect
-                x={x0}
-                y={y0}
-                width={barW}
-                height={noH}
-                fill="#e74c3c"
-                onMouseEnter={(e) =>
-                  setTooltip({
-                    show: true,
-                    content: `Non-POI: ${no}%`,
-                    x: e.clientX,
-                    y: e.clientY,
-                  })
-                }
-                onMouseLeave={() => setTooltip((t) => ({ ...t, show: false }))}
-              />
-              <text
-                x={x0 + barW / 2}
-                y={y0 + noH / 2}
-                textAnchor="middle"
+              {/* outer circle */}
+              <circle cx={centerX} cy={centerY} r={maxR} fill="#fff" stroke="#f0f0f0" strokeWidth={1} />
+              {/* guide rings */}
+              {[0.25, 0.5, 0.75].map(f => (
+                <circle
+                  key={f}
+                  cx={centerX} cy={centerY}
+                  r={maxR*f}
+                  fill="none"
+                  stroke="#f8f8f8"
+                  strokeWidth={1}
+                  strokeDasharray="2,2"
+                />
+              ))}
+              {/* bars */}
+              {topPoi.map((item, i) => {
+                const radius      = maxR - i*(barW+2);
+                const c           = 2*Math.PI*radius;
+                const pct         = item.count / Math.max(...topPoi.map(d=>d.count));
+                const arcPct      = Math.max(0.15, pct)*0.4; // ensure min visibility
+                const dashLength  = arcPct*c;
+                const startAngle  = -60;
+                return (
+                  <circle
+                    key={item.poi}
+                    cx={centerX} cy={centerY}
+                    r={radius}
+                    fill="none"
+                    stroke={["#b25dd6","#cdcdcd","#f96b69","#72c556","#f8d950"][i]}
+                    strokeWidth={barW*0.85}
+                    strokeDasharray={`${dashLength} ${c}`}
+                    strokeLinecap="round"
+                    transform={`rotate(${startAngle},${centerX},${centerY})`}
+                    onMouseEnter={e=>setTooltip({
+                      show:true,
+                      content:`${item.poi.replace(/_/g," ")}: ${item.count.toLocaleString()} (${item.percentage}%)`,
+                      x:e.clientX,y:e.clientY
+                    })}
+                    onMouseLeave={()=>setTooltip(t=>({ ...t, show:false }))}
+                    style={{ cursor:"pointer" }}
+                  />
+                );
+              })}
+              {/* center circle */}
+              <filter id="ds"><feDropShadow dx="0" dy="1" stdDeviation="2" floodOpacity="0.1"/></filter>
+              <circle
+                cx={centerX} cy={centerY}
+                r={innerR}
                 fill="#fff"
-                fontSize="14"
-                fontWeight="bold"
-              >
-                No {no}%
-              </text>
-              {/* Yes */}
-              <rect
-                x={x0}
-                y={y0 + noH}
-                width={barW}
-                height={yesH}
-                fill="#3498db"
-                onMouseEnter={(e) =>
-                  setTooltip({
-                    show: true,
-                    content: `POI: ${yes}%`,
-                    x: e.clientX,
-                    y: e.clientY,
-                  })
-                }
-                onMouseLeave={() => setTooltip((t) => ({ ...t, show: false }))}
+                stroke="#f0f0f0"
+                strokeWidth={1}
+                filter="url(#ds)"
               />
-              {yes > 5 && (
-                <text
-                  x={x0 + barW / 2}
-                  y={y0 + noH + yesH / 2}
-                  textAnchor="middle"
-                  fill="#fff"
-                  fontSize="14"
-                  fontWeight="bold"
-                >
-                  Yes {yes}%
-                </text>
-              )}
-              {/* label */}
-              <text
-                x={x0 + barW / 2}
-                y={y0 - 10}
-                textAnchor="middle"
-                fill="#333"
-                fontSize="14"
-                fontWeight="bold"
-              >
+              {/* total text */}
+              <text x={centerX} y={centerY-12} textAnchor="middle" fill="#666" fontSize={12}>
+                Total
+              </text>
+              <text x={centerX} y={centerY+14} textAnchor="middle" fill="#333" fontSize={20} fontWeight="bold">
+                {total.toLocaleString()}
+              </text>
+              {/* labels legend */}
+              {topPoi.map((item, i) => {
+                const y = centerY - (maxR - i*(barW+2)) + 4;
+                return (
+                  <g key={item.poi}>
+                    <circle cx={centerX - maxR - 20} cy={y} r={4}
+                      fill={["#b25dd6","#cdcdcd","#f96b69","#72c556","#f8d950"][i]}
+                    />
+                    <text
+                      x={centerX - maxR - 12}
+                      y={y}
+                      fontSize={12}
+                      fill="#555"
+                      textAnchor="start"
+                      alignmentBaseline="middle"
+                    >
+                      {item.poi.replace(/_/g," ")}
+                    </text>
+                    <text
+                      x={centerX - maxR + 48}
+                      y={y}
+                      fontSize={12}
+                      fill="#333"
+                      fontWeight="bold"
+                      textAnchor="start"
+                      alignmentBaseline="middle"
+                    >
+                      {item.count.toLocaleString()}
+                    </text>
+                  </g>
+                );
+              })}
+            </g>
+          );
+        })()}
+
+        {/* ----- Yes/No Bar ----- */}
+        {(() => {
+          const barW = 80;
+          const barH = height * 0.65;
+          const x0   = width * 0.72;
+          const y0   = (height-barH)/2;
+          const noH  = (noItem.percentage/100)*barH;
+          const yesH = (yesItem.percentage/100)*barH;
+          return (
+            <g>
+              {/* title */}
+              <text x={x0+barW/2} y={y0-20} fontSize={16} fontWeight="bold" textAnchor="middle" fill="#333">
                 POI
               </text>
+              {/* background */}
+              <filter id="bs"><feDropShadow dx="0" dy="1" stdDeviation="1" floodOpacity="0.1"/></filter>
+              <rect
+                x={x0} y={y0}
+                width={barW} height={barH}
+                fill="#f8f8f8" stroke="#e0e0e0" strokeWidth={1}
+                filter="url(#bs)"
+              />
+              {/* No */}
+              <rect
+                x={x0} y={y0}
+                width={barW} height={noH}
+                rx={4} ry={4} fill="#e74c3c"
+                onMouseEnter={e=>setTooltip({
+                  show:true,
+                  content:`Non-POI: ${noItem.count.toLocaleString()} (${noItem.percentage}%)`,
+                  x:e.clientX,y:e.clientY
+                })}
+                onMouseLeave={()=>setTooltip(t=>({ ...t, show:false }))}
+                style={{ cursor:"pointer" }}
+              />
+              {/* Yes */}
+              <rect
+                x={x0} y={y0+noH}
+                width={barW} height={Math.max(2,yesH)}
+                fill="#3498db"
+                onMouseEnter={e=>setTooltip({
+                  show:true,
+                  content:`POI: ${yesItem.count.toLocaleString()} (${yesItem.percentage}%)`,
+                  x:e.clientX,y:e.clientY
+                })}
+                onMouseLeave={()=>setTooltip(t=>({ ...t, show:false }))}
+                style={{ cursor:"pointer" }}
+              />
+              {/* labels */}
+              <text x={x0+barW/2} y={y0+noH/2} textAnchor="middle" fill="#fff" fontSize={14} fontWeight="bold">
+                No {Math.round(noItem.percentage)}%
+              </text>
+              {yesItem.percentage > 2 && (
+                <text
+                  x={x0+barW/2}
+                  y={y0+noH + yesH/2}
+                  textAnchor="middle"
+                  fill="#fff"
+                  fontSize={14}
+                  fontWeight="bold"
+                >
+                  Yes {Math.round(yesItem.percentage)}%
+                </text>
+              )}
             </g>
           );
         })()}
@@ -256,20 +255,19 @@ const RadialBarChart = ({ selectedState, width = 600, height = 500 }) => {
 
       {/* Tooltip */}
       {tooltip.show && (
-        <div
-          style={{
-            position: "absolute",
-            left: tooltip.x - chartRef.current.getBoundingClientRect().left + 10,
-            top: tooltip.y - chartRef.current.getBoundingClientRect().top - 30,
-            background: "rgba(0,0,0,0.75)",
-            color: "#fff",
-            padding: "6px 10px",
-            borderRadius: 4,
-            pointerEvents: "none",
-            fontSize: "12px",
-            zIndex: 10,
-          }}
-        >
+        <div style={{
+          position: "absolute",
+          left: tooltip.x + 10,
+          top: tooltip.y - 10,
+          padding: "6px 10px",
+          background: "rgba(0,0,0,0.8)",
+          color: "#fff",
+          borderRadius: 4,
+          fontSize: 12,
+          pointerEvents: "none",
+          whiteSpace: "nowrap",
+          zIndex: 10
+        }}>
           {tooltip.content}
         </div>
       )}
