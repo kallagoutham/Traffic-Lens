@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import * as d3 from 'd3';
+import React, { useEffect, useRef, useState } from "react";
+import * as d3 from "d3";
 
 export default function IntegratedVisualization({
   countyData = [],
@@ -8,13 +8,13 @@ export default function IntegratedVisualization({
   countyLoading = false,
   zipLoading = false,
 
-  width = '100%',
-  height = '100%',
+  width = "100%",
+  height = "100%",
   state = null,
-  colorScheme = 'YlOrRd',
+  colorScheme = "YlOrRd",
   animated = true,
-
-  maxBars = 10
+  maxBars = 10,
+  themeColor,
 }) {
   const containerRef = useRef();
   const treemapRef = useRef();
@@ -30,14 +30,14 @@ export default function IntegratedVisualization({
       }
     };
     measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
   }, []);
 
   useEffect(() => {
     if (!countyData.length || dims.height === 0) return;
     const svg = d3.select(treemapRef.current);
-    svg.selectAll('*').remove();
+    svg.selectAll("*").remove();
 
     const totalH = dims.height * 0.4;
     const margin = { top: 5, right: 5, bottom: 5, left: 5 };
@@ -45,8 +45,8 @@ export default function IntegratedVisualization({
     const innerH = totalH - margin.top - margin.bottom;
 
     svg
-      .attr('viewBox', `0 0 ${dims.width} ${totalH}`)
-      .attr('preserveAspectRatio', 'xMidYMid meet');
+      .attr("viewBox", `0 0 ${dims.width} ${totalH}`)
+      .attr("preserveAspectRatio", "xMidYMid meet");
 
     // Process data to show top counties
     const topCounties = [...countyData]
@@ -54,151 +54,180 @@ export default function IntegratedVisualization({
       .slice(0, maxBars);
 
     // build hierarchy
-    const root = d3.hierarchy({ children: topCounties })
-      .sum(d => d.count)
+    const root = d3
+      .hierarchy({ children: topCounties })
+      .sum((d) => d.count)
       .sort((a, b) => b.value - a.value);
 
-    d3.treemap()
+    d3
+      .treemap()
       .size([innerW, innerH])
       .paddingInner(1)
       .paddingOuter(0)
-      .round(true)
-      (root);
+      .round(true)(root);
 
-    const maxVal = d3.max(topCounties, d => d.count);
-    const colorScale = d3.scaleSequential(d3[`interpolate${colorScheme}`])
-      .domain([0, maxVal]);
+    const maxVal = d3.max(topCounties, (d) => d.count);
+    let colorScale;
+    if (themeColor === "red") {
+      colorScale = d3.scaleSequential(d3.interpolateReds).domain([0, maxVal]);
+    } else if (themeColor === "yellow") {
+      colorScale = d3
+        .scaleSequential(d3.interpolateOranges)
+        .domain([0, maxVal]);
+    } else if (themeColor === "green") {
+      colorScale = d3.scaleSequential(d3.interpolateGreens).domain([0, maxVal]);
+    } else {
+      // fallback to red
+      colorScale = d3.scaleSequential(d3.interpolateReds).domain([0, maxVal]);
+    }
 
-    const g = svg.append('g')
-      .attr('transform', `translate(${margin.left},${margin.top})`);
-    
+    const g = svg
+      .append("g")
+      .attr("transform", `translate(${margin.left},${margin.top})`);
+
     // cells
-    const cell = g.selectAll('g')
+    const cell = g
+      .selectAll("g")
       .data(root.leaves())
-      .join('g')
-        .attr('transform', d => `translate(${d.x0},${d.y0})`);
+      .join("g")
+      .attr("transform", (d) => `translate(${d.x0},${d.y0})`);
 
     // Add rects with enhanced hover effects
-    const rects = cell.append('rect')
-      .attr('width', d => d.x1 - d.x0)
-      .attr('height', d => d.y1 - d.y0)
-      .attr('fill', d => colorScale(d.value))
-      .attr('rx', 2) // Slight rounding of corners
-      .style('cursor', 'pointer')
-      .style('transition', 'all 0.2s ease-in-out')
-      .on('mouseover', function() {
+    const rects = cell
+      .append("rect")
+      .attr("width", (d) => d.x1 - d.x0)
+      .attr("height", (d) => d.y1 - d.y0)
+      .attr("fill", (d) => colorScale(d.value))
+      .attr("rx", 2) // Slight rounding of corners
+      .style("cursor", "pointer")
+      .style("transition", "all 0.2s ease-in-out")
+      .on("mouseover", function () {
         d3.select(this)
-          .attr('stroke', '#fff')
-          .attr('stroke-width', 2)
-          .style('filter', 'brightness(1.1)'); 
+          .attr("stroke", "#fff")
+          .attr("stroke-width", 2)
+          .style("filter", "brightness(1.1)");
       })
-      .on('mouseout', function() {
+      .on("mouseout", function () {
         d3.select(this)
-          .attr('stroke', 'none')
-          .attr('stroke-width', 0)
-          .style('filter', 'none');
-      });
-    
-    if (animated) {
-      rects.style('opacity', 0)
-        .transition().duration(600)
-        .style('opacity', 1)
-        .delay((d, i) => i * 25);
-    }
-    cell.append('text')
-      .attr('x', 3).attr('y', 14) 
-      .attr('font-size', d => {
-        const w = d.x1 - d.x0;
-        return w > 100 ? '14px' : w > 70 ? '12px' : '10px';
-      })
-      .attr('font-weight', '1000')
-      .attr('fill', '#fff')
-      .attr('text-shadow', '0px 1px 2px rgba(0,0,0,0.8)') 
-      .text(d => {
-        const w = d.x1 - d.x0, h = d.y1 - d.y0;
-        if (w > 50 && h > 25) return d.data.county;
-        if (w > 40 && h > 20) return d.data.county.slice(0, Math.floor(w/7)); 
-        return '';
+          .attr("stroke", "none")
+          .attr("stroke-width", 0)
+          .style("filter", "none");
       });
 
-    cell.append('text')
-      .attr('x', 3).attr('y', 28) 
-      .attr('font-size', '10px')
-      .attr('font-weight', '700')
-      .attr('fill', '#fff')
-      .attr('text-shadow', '0px 1px 1px rgba(0,0,0,0.5)')
-      .text(d => {
-        if (d.value >= 1000000) return `${(d.value/1000000).toFixed(1)}M`;
-        if (d.value >= 1000) return `${(d.value/1000).toFixed(1)}k`;
+    if (animated) {
+      rects
+        .style("opacity", 0)
+        .transition()
+        .duration(600)
+        .style("opacity", 1)
+        .delay((d, i) => i * 25);
+    }
+    cell
+      .append("text")
+      .attr("x", 3)
+      .attr("y", 14)
+      .attr("font-size", (d) => {
+        const w = d.x1 - d.x0;
+        return w > 100 ? "14px" : w > 70 ? "12px" : "10px";
+      })
+      .attr("font-weight", "1000")
+      .attr("fill", "#fff")
+      .attr("text-shadow", "0px 1px 2px rgba(0,0,0,0.8)")
+      .text((d) => {
+        const w = d.x1 - d.x0,
+          h = d.y1 - d.y0;
+        if (w > 50 && h > 25) return d.data.county;
+        if (w > 40 && h > 20) return d.data.county.slice(0, Math.floor(w / 7));
+        return "";
+      });
+
+    cell
+      .append("text")
+      .attr("x", 3)
+      .attr("y", 28)
+      .attr("font-size", "10px")
+      .attr("font-weight", "700")
+      .attr("fill", "#fff")
+      .attr("text-shadow", "0px 1px 1px rgba(0,0,0,0.5)")
+      .text((d) => {
+        if (d.value >= 1000000) return `${(d.value / 1000000).toFixed(1)}M`;
+        if (d.value >= 1000) return `${(d.value / 1000).toFixed(1)}k`;
         return d.value;
       });
 
-    const tooltip = d3.select(containerRef.current)
-      .append('div')
-        .attr('class', 'treemap-tooltip')
-        .style('position', 'absolute')
-        .style('visibility', 'hidden')
-        .style('background', 'rgba(0,0,0,0.8)')
-        .style('color', '#fff')
-        .style('padding', '8px 12px')
-        .style('border-radius', '4px')
-        .style('font-size', '12px')
-        .style('pointer-events', 'none')
-        .style('z-index', '100')
-        .style('box-shadow', '0 3px 14px rgba(0,0,0,0.2)');
+    const tooltip = d3
+      .select(containerRef.current)
+      .append("div")
+      .attr("class", "treemap-tooltip")
+      .style("position", "absolute")
+      .style("visibility", "hidden")
+      .style("background", "rgba(0,0,0,0.8)")
+      .style("color", "#fff")
+      .style("padding", "8px 12px")
+      .style("border-radius", "4px")
+      .style("font-size", "12px")
+      .style("pointer-events", "none")
+      .style("z-index", "100")
+      .style("box-shadow", "0 3px 14px rgba(0,0,0,0.2)");
 
     cell
-      .on('mouseover', function(e, d) {
+      .on("mouseover", function (e, d) {
         // Apply highlight to current rectangle
-        d3.select(this).select('rect')
-          .attr('stroke', '#fff')
-          .attr('stroke-width', 2)
-          .style('filter', 'brightness(1.1)');
-          
-        d3.select(this).selectAll('text')
-          .style('font-weight', '900')
-          .style('text-shadow', '0px 1px 3px rgba(0,0,0,1)');
-          
+        d3.select(this)
+          .select("rect")
+          .attr("stroke", "#fff")
+          .attr("stroke-width", 2)
+          .style("filter", "brightness(1.1)");
+
+        d3.select(this)
+          .selectAll("text")
+          .style("font-weight", "900")
+          .style("text-shadow", "0px 1px 3px rgba(0,0,0,1)");
+
         // Show tooltip
-        tooltip.html(`
+        tooltip
+          .html(
+            `
           <strong>${d.data.county}</strong><br>
           Count: ${d.value.toLocaleString()}
-        `)
-        .style('top', `${e.pageY - 10}px`)
-        .style('left', `${e.pageX + 10}px`)
-        .style('visibility', 'visible');
+        `
+          )
+          .style("top", `${e.pageY - 10}px`)
+          .style("left", `${e.pageX + 10}px`)
+          .style("visibility", "visible");
       })
-      .on('mousemove', (e) => {
+      .on("mousemove", (e) => {
         tooltip
-          .style('top', `${e.pageY - 10}px`)
-          .style('left', `${e.pageX + 10}px`);
+          .style("top", `${e.pageY - 10}px`)
+          .style("left", `${e.pageX + 10}px`);
       })
-      .on('mouseout', function() {
+      .on("mouseout", function () {
         // Remove highlight
-        d3.select(this).select('rect')
-          .attr('stroke', 'none')
-          .attr('stroke-width', 0)
-          .style('filter', 'none');
-          
-        // Restore text to normal
-        d3.select(this).selectAll('text')
-          .style('font-weight', function() { 
-            return d3.select(this).attr('font-weight'); 
-          })
-          .style('text-shadow', function() { 
-            return d3.select(this).attr('text-shadow'); 
-          });
-          
-        tooltip.style('visibility', 'hidden');
-      });
+        d3.select(this)
+          .select("rect")
+          .attr("stroke", "none")
+          .attr("stroke-width", 0)
+          .style("filter", "none");
 
+        // Restore text to normal
+        d3.select(this)
+          .selectAll("text")
+          .style("font-weight", function () {
+            return d3.select(this).attr("font-weight");
+          })
+          .style("text-shadow", function () {
+            return d3.select(this).attr("text-shadow");
+          });
+
+        tooltip.style("visibility", "hidden");
+      });
   }, [countyData, dims, state, colorScheme, animated, maxBars]);
 
   // SUNBURST (bottom 40% of total height)
   useEffect(() => {
     if (!zipData.length || dims.height === 0) return;
     const svg = d3.select(sunburstRef.current);
-    svg.selectAll('*').remove();
+    svg.selectAll("*").remove();
 
     const totalH = dims.height * 0.4;
     const margin = { top: 5, right: 5, bottom: 5, left: 5 };
@@ -207,163 +236,184 @@ export default function IntegratedVisualization({
     const radius = Math.min(innerW, innerH) / 2.2; // Slightly smaller to fit better
 
     svg
-      .attr('viewBox', `0 0 ${dims.width} ${totalH}`)
-      .attr('preserveAspectRatio', 'xMidYMid meet');
+      .attr("viewBox", `0 0 ${dims.width} ${totalH}`)
+      .attr("preserveAspectRatio", "xMidYMid meet");
 
-    const g = svg.append('g')
-      .attr('transform', `translate(${margin.left + innerW/2}, ${margin.top + innerH/2})`);
+    const g = svg
+      .append("g")
+      .attr(
+        "transform",
+        `translate(${margin.left + innerW / 2}, ${margin.top + innerH / 2})`
+      );
 
     const display = [...zipData]
       .sort((a, b) => b.count - a.count)
       .slice(0, maxBars);
 
-    const maxCount = d3.max(display, d => d.count);
+    const maxCount = d3.max(display, (d) => d.count);
 
-    const root = d3.hierarchy({ name: "ZIP Codes", children: display })
-      .sum(d => d.count)
+    const root = d3
+      .hierarchy({ name: "ZIP Codes", children: display })
+      .sum((d) => d.count)
       .sort((a, b) => b.value - a.value);
 
-    d3.partition()
-      .size([2 * Math.PI, radius])
-      (root);
+    d3.partition().size([2 * Math.PI, radius])(root);
 
-    const color = d3.scaleSequential()
-          .domain([0, 1])
-          .interpolator(d3.interpolateReds);
-
-    const arc = d3.arc()
-      .startAngle(d => d.x0)
-      .endAngle(d => d.x1)
-      .innerRadius(d => Math.max(0, d.y0))
-      .outerRadius(d => Math.max(0, d.y1))
+    const arc = d3
+      .arc()
+      .startAngle((d) => d.x0)
+      .endAngle((d) => d.x1)
+      .innerRadius((d) => Math.max(0, d.y0))
+      .outerRadius((d) => Math.max(0, d.y1))
       .padAngle(0.005)
       .padRadius(radius);
 
-    const slices = g.selectAll('path')
-      .data(root.descendants().filter(d => d.depth))
-      .join('path')
-        .attr('d', arc)
-        .attr('fill', d => {
-      const t = d.data.count / maxCount;
-      return d3.scaleSequential()
-      .domain([0, 1.5])
-      .interpolator(d3.interpolateReds)(t);})
-        .attr('stroke', '#fff')
-        .attr('stroke-width', 0.5)
-        .style('cursor', 'pointer')
-        .style('transition', 'all 0.2s ease-in-out') 
-        .on('mouseover', function(e, d) {
-          d3.select(this)
-            .attr('stroke', '#fff')
-            .attr('stroke-width', 2)
-            .style('filter', 'brightness(1.2)')
-            .style('transform', 'scale(1.03)')
-            .style('transform-origin', 'center');
-            
-          // Show tooltip
-          tooltip.html(`
+    const slices = g
+      .selectAll("path")
+      .data(root.descendants().filter((d) => d.depth))
+      .join("path")
+      .attr("d", arc)
+      .attr("fill", (d) => {
+        const t = d.data.count / maxCount;
+        let interp;
+        if (themeColor === "red") {
+          interp = d3.interpolateReds;
+        } else if (themeColor === "yellow") {
+          interp = d3.interpolateOranges;
+        } else if (themeColor === "green") {
+          interp = d3.interpolateGreens;
+        } else {
+          interp = d3.interpolateReds; // fallback
+        }
+
+        // build & apply the scale
+        return d3.scaleSequential().domain([0, 1.5]).interpolator(interp)(t);
+      })
+      .attr("stroke", "#fff")
+      .attr("stroke-width", 0.5)
+      .style("cursor", "pointer")
+      .style("transition", "all 0.2s ease-in-out")
+      .on("mouseover", function (e, d) {
+        d3.select(this)
+          .attr("stroke", "#fff")
+          .attr("stroke-width", 2)
+          .style("filter", "brightness(1.2)")
+          .style("transform", "scale(1.03)")
+          .style("transform-origin", "center");
+
+        // Show tooltip
+        tooltip
+          .html(
+            `
             <strong>${d.data.zipcode}</strong><br>
             Count: ${d.value.toLocaleString()}<br>
-            ${d.data.city ? `City: ${d.data.city}` : ''}
-          `)
-          .style('top', `${e.pageY - 10}px`)
-          .style('left', `${e.pageX + 10}px`)
-          .style('visibility', 'visible');
-        })
-        .on('mousemove', (e) => {
-          tooltip
-            .style('top', `${e.pageY - 10}px`)
-            .style('left', `${e.pageX + 10}px`);
-        })
-        .on('mouseout', function() {
-          // Remove highlight
-          d3.select(this)
-            .attr('stroke', '#fff')
-            .attr('stroke-width', 0.5)
-            .style('filter', 'none')
-            .style('transform', 'scale(1)');
-            
-          tooltip.style('visibility', 'hidden');
-        });
+            ${d.data.city ? `City: ${d.data.city}` : ""}
+          `
+          )
+          .style("top", `${e.pageY - 10}px`)
+          .style("left", `${e.pageX + 10}px`)
+          .style("visibility", "visible");
+      })
+      .on("mousemove", (e) => {
+        tooltip
+          .style("top", `${e.pageY - 10}px`)
+          .style("left", `${e.pageX + 10}px`);
+      })
+      .on("mouseout", function () {
+        // Remove highlight
+        d3.select(this)
+          .attr("stroke", "#fff")
+          .attr("stroke-width", 0.5)
+          .style("filter", "none")
+          .style("transform", "scale(1)");
+
+        tooltip.style("visibility", "hidden");
+      });
 
     // Animate slices if requested
     if (animated) {
-      slices.style('opacity', 0)
-        .transition().duration(800)
-        .style('opacity', 1)
+      slices
+        .style("opacity", 0)
+        .transition()
+        .duration(800)
+        .style("opacity", 1)
         .delay((d, i) => i * 50);
     }
 
-    g.selectAll('text')
-      .data(root.descendants().filter(d => d.depth && (d.x1 - d.x0) > 0.15)) 
-      .join('text')
-        .attr('transform', d => {
-          const x = (d.x0 + d.x1) / 2;
-          const y = (d.y0 + d.y1) / 2;
-          const angle = x - Math.PI / 2;
-          const radius = y;
-          return `translate(${Math.cos(angle) * radius},${Math.sin(angle) * radius}) rotate(${angle * 180 / Math.PI})`;
-        })
-        .attr('text-anchor', 'middle')
-        .attr('font-size', '11px') 
-        .attr('font-weight', '900')
-        .attr('fill', '#fff')
-        .attr('text-shadow', '0px 1px 3px rgba(0,0,0,0.9)') 
-        .style('pointer-events', 'none')
-        .text(d => d.data.zipcode); 
+    g.selectAll("text")
+      .data(root.descendants().filter((d) => d.depth && d.x1 - d.x0 > 0.15))
+      .join("text")
+      .attr("transform", (d) => {
+        const x = (d.x0 + d.x1) / 2;
+        const y = (d.y0 + d.y1) / 2;
+        const angle = x - Math.PI / 2;
+        const radius = y;
+        return `translate(${Math.cos(angle) * radius},${
+          Math.sin(angle) * radius
+        }) rotate(${(angle * 180) / Math.PI})`;
+      })
+      .attr("text-anchor", "middle")
+      .attr("font-size", "11px")
+      .attr("font-weight", "900")
+      .attr("fill", "#fff")
+      .attr("text-shadow", "0px 1px 3px rgba(0,0,0,0.9)")
+      .style("pointer-events", "none")
+      .text((d) => d.data.zipcode);
 
     // tooltip
-    const tooltip = d3.select(containerRef.current)
-      .append('div')
-        .attr('class', 'sunburst-tooltip')
-        .style('position', 'absolute')
-        .style('visibility', 'hidden')
-        .style('background', 'rgba(0,0,0,0.8)')
-        .style('color', '#fff')
-        .style('padding', '8px 12px')
-        .style('border-radius', '4px')
-        .style('font-size', '12px')
-        .style('pointer-events', 'none')
-        .style('z-index', '100')
-        .style('box-shadow', '0 3px 14px rgba(0,0,0,0.2)');
+    const tooltip = d3
+      .select(containerRef.current)
+      .append("div")
+      .attr("class", "sunburst-tooltip")
+      .style("position", "absolute")
+      .style("visibility", "hidden")
+      .style("background", "rgba(0,0,0,0.8)")
+      .style("color", "#fff")
+      .style("padding", "8px 12px")
+      .style("border-radius", "4px")
+      .style("font-size", "12px")
+      .style("pointer-events", "none")
+      .style("z-index", "100")
+      .style("box-shadow", "0 3px 14px rgba(0,0,0,0.2)");
 
     slices
-      .on('mouseover', (e, d) => {
-        tooltip.html(`
+      .on("mouseover", (e, d) => {
+        tooltip
+          .html(
+            `
           <strong>ZIP: ${d.data.zipcode}</strong><br>
           Count: ${d.value.toLocaleString()}<br>
-          ${d.data.city ? `City: ${d.data.city}` : ''}
-        `)
-        .style('top', `${e.pageY - 10}px`)
-        .style('left', `${e.pageX + 10}px`)
-        .style('visibility', 'visible');
-        
+          ${d.data.city ? `City: ${d.data.city}` : ""}
+        `
+          )
+          .style("top", `${e.pageY - 10}px`)
+          .style("left", `${e.pageX + 10}px`)
+          .style("visibility", "visible");
+
         // Highlight current slice
         d3.select(e.currentTarget)
-          .attr('stroke', '#000')
-          .attr('stroke-width', 2)
-          .style('filter', 'brightness(1.1)');
+          .attr("stroke", "#000")
+          .attr("stroke-width", 2)
+          .style("filter", "brightness(1.1)");
       })
-      .on('mousemove', (e) => {
+      .on("mousemove", (e) => {
         tooltip
-          .style('top', `${e.pageY - 10}px`)
-          .style('left', `${e.pageX + 10}px`);
+          .style("top", `${e.pageY - 10}px`)
+          .style("left", `${e.pageX + 10}px`);
       })
-      .on('mouseout', (e) => {
-        tooltip.style('visibility', 'hidden');
-        
+      .on("mouseout", (e) => {
+        tooltip.style("visibility", "hidden");
+
         // Remove highlight
         d3.select(e.currentTarget)
-          .attr('stroke', '#fff')
-          .attr('stroke-width', 1)
-          .style('filter', 'none');
+          .attr("stroke", "#fff")
+          .attr("stroke-width", 1)
+          .style("filter", "none");
       });
-    g.append('circle')
-      .attr('r', radius * 0.12)
-      .attr('fill', '#fff')
-      .attr('stroke', '#ddd');
-    
-
+    g.append("circle")
+      .attr("r", radius * 0.12)
+      .attr("fill", "#fff")
+      .attr("stroke", "#ddd");
   }, [zipData, dims, state, maxBars, animated]);
 
   const isLoading = countyLoading || zipLoading;
@@ -372,40 +422,44 @@ export default function IntegratedVisualization({
     <div
       ref={containerRef}
       style={{
-        width, 
+        width,
         height,
-        display: 'flex',
-        flexDirection: 'column',
-        position: 'relative',
-        background: '#fff',
+        display: "flex",
+        flexDirection: "column",
+        position: "relative",
+        background: "#fff",
         borderRadius: 0,
-        overflow: 'hidden',
+        overflow: "hidden",
         padding: 0,
       }}
     >
       {isLoading && (
-        <div style={{
-          position: 'absolute', 
-          top: 0, 
-          left: 0,
-          width: '100%', 
-          height: '100%',
-          background: 'rgba(255,255,255,0.9)',
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          zIndex: 10
-        }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{
-              width: 40, 
-              height: 40,
-              border: '4px solid #f3f3f3',
-              borderTop: '4px solid #ff5252',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite',
-              margin: '0 auto 10px'
-            }} />
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            background: "rgba(255,255,255,0.9)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10,
+          }}
+        >
+          <div style={{ textAlign: "center" }}>
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                border: "4px solid #f3f3f3",
+                borderTop: "4px solid #ff5252",
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite",
+                margin: "0 auto 10px",
+              }}
+            />
             <strong>Loading data...</strong>
             <style>{`
               @keyframes spin {
@@ -417,12 +471,12 @@ export default function IntegratedVisualization({
         </div>
       )}
 
-      <div style={{ flex: '0 0 40%', width: '100%' }}>
-        <svg ref={treemapRef} style={{ width: '100%', height: '100%' }} />
+      <div style={{ flex: "0 0 40%", width: "100%" }}>
+        <svg ref={treemapRef} style={{ width: "100%", height: "100%" }} />
       </div>
 
-      <div style={{ flex: '0 0 40%', width: '100%' }}>
-        <svg ref={sunburstRef} style={{ width: '100%', height: '100%' }} />
+      <div style={{ flex: "0 0 40%", width: "100%" }}>
+        <svg ref={sunburstRef} style={{ width: "100%", height: "100%" }} />
       </div>
     </div>
   );

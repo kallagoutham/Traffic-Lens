@@ -24,7 +24,8 @@ export default function App() {
   const [countyData, setCountyData] = useState([]);
   const [countyLoading, setCountyLoading] = useState(false);
   const [zipLoading, setZipLoading] = useState(false);
-  
+  const [themeColor, setThemeColor] = useState('red');
+
   // Added state for RadialBarChart
   const [poiData, setPoiData] = useState(null);
   const [poiLoading, setPoiLoading] = useState(false);
@@ -203,13 +204,12 @@ export default function App() {
       })
       .finally(() => setSunburstLoading(false));
       
-  }, [selectedState, filters]);
+  }, [selectedState, filters, themeColor]);
 
   const stateOptions = stateData.map((d) => ({
     value: d.state,
     label: d.state,
   }));
-
   return (
     <>
       <header
@@ -220,7 +220,48 @@ export default function App() {
           padding: "10px 20px",
         }}
       >
-        <h1 style={{ margin: 0 }}>🚦 Traffic Accident Analysis Dashboard</h1>
+        <div style={{ display: "flex", alignItems: "center" }}>
+          {/* Traffic Light Emojis */}
+          <div style={{ marginRight: "10px" }}>
+            <span 
+              onClick={() => setThemeColor('red')}
+              style={{ 
+                cursor: "pointer", 
+                fontSize: "1.2rem", 
+                margin: "0 3px",
+                opacity: themeColor === 'red' ? 1 : 0.6
+              }}
+              title="Red theme"
+            >
+              🔴
+            </span>
+            <span 
+              onClick={() => setThemeColor('yellow')}
+              style={{ 
+                cursor: "pointer", 
+                fontSize: "1.2rem", 
+                margin: "0 3px",
+                opacity: themeColor === 'yellow' ? 1 : 0.6
+              }}
+              title="Yellow theme"
+            >
+              🟡
+            </span>
+            <span 
+              onClick={() => setThemeColor('green')}
+              style={{ 
+                cursor: "pointer", 
+                fontSize: "1.2rem", 
+                margin: "0 3px",
+                opacity: themeColor === 'green' ? 1 : 0.6
+              }}
+              title="Green theme"
+            >
+              🟢
+            </span>
+          </div>
+          <h1 style={{ margin: 0 }}>Traffic Accident Analysis Dashboard</h1>
+        </div>
         {(selectedState || filters.timeRange || Object.keys(filters.pcpValues).length > 0) && (
           <div style={{ display: "flex", gap: "10px" }}>
             {selectedState && (
@@ -286,6 +327,7 @@ export default function App() {
               hoveredState={hoveredState}
               onStateSelect={setSelectedState}
               onStateHover={setHoveredState}
+              themeColor={themeColor}
             />
           </div>
         )}
@@ -296,6 +338,7 @@ export default function App() {
               selectedState={selectedState}
               data={locationData}
               loading={locationLoading}
+              themeColor={themeColor}
             />
           </div>
         )}
@@ -308,6 +351,7 @@ export default function App() {
             weekdayLoading={weekdayLoading}
             timeRange={filters.timeRange}
             onTimeRangeSelect={(range) => updateFilters({ timeRange: range })}
+            themeColor={themeColor}
           />
         </div>
         <div className="chart-card">
@@ -317,6 +361,7 @@ export default function App() {
           <ParallelCoords 
             data={parData} 
             onPCPSelect={(values) => updateFilters({ pcpValues: values })}
+            themeColor={themeColor}
           />
         </div>
         <div className="chart-card">
@@ -336,6 +381,7 @@ export default function App() {
             animated={true}
             treemapTitle={selectedState ? `${selectedState} Top Counties` : "Top Counties Overall"}
             barChartTitle={selectedState ? `${selectedState} Top ZIP Codes` : "Top ZIP Codes Overall"}
+            themeColor={themeColor}
           />
         </div>
         <div className="chart-card">
@@ -364,6 +410,7 @@ export default function App() {
                 (typeof filters[key] === 'object' ? Object.keys(filters[key]).length > 0 : true)
               ) ? filters : null
             }
+            themeColor={themeColor}
           />
         </div>
         <div className="chart-card">
@@ -392,6 +439,7 @@ export default function App() {
                 (typeof filters[key] === 'object' ? Object.keys(filters[key]).length > 0 : true)
               ) ? filters : null
             }
+            themeColor={themeColor}
           />
         </div>
       </div>

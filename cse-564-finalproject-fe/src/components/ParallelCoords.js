@@ -15,6 +15,7 @@ export default function ParallelCoords({
     tooltipBorder: "#ff4d4d",
     fontFamily: "system-ui, -apple-system, sans-serif",
   },
+  themeColor,
 }) {
   const containerRef = useRef();
   const svgRef = useRef();
@@ -28,7 +29,7 @@ export default function ParallelCoords({
     "Humidity(%)",
     "Visibility(mi)",
     "Wind_Speed(mph)",
-    'Precipitation(in)'
+    "Precipitation(in)",
   ];
 
   useEffect(() => {
@@ -280,9 +281,31 @@ export default function ParallelCoords({
         return yScales[dim](d);
       })
       .curve(d3.curveMonotoneX);
-    const colorScale = d3.scaleSequential()
-    .domain([1, 4])
-    .interpolator(d3.interpolateRgb("#f8c0c0", "#cd0505"));
+    let colorScale;
+
+    if (themeColor === "red") {
+      colorScale = d3
+        .scaleSequential()
+        .domain([1, 4])
+        .interpolator(d3.interpolateRgb("#f8c0c0", "#cd0505"));
+    } else if (themeColor === "yellow") {
+      colorScale = d3
+        .scaleSequential()
+        .domain([1, 4])
+        .interpolator(d3.interpolateRgb("#f8f8c0", "#cdcd05"));
+    } else if (themeColor === "green") {
+      colorScale = d3
+        .scaleSequential()
+        .domain([1, 4])
+        .interpolator(d3.interpolateRgb("#c0f8c0", "#05cd05"));
+    } else {
+      // fallback to red
+      colorScale = d3
+        .scaleSequential()
+        .domain([1, 4])
+        .interpolator(d3.interpolateRgb("#f8c0c0", "#cd0505"));
+    }
+
     const linesGroup = g.append("g").attr("class", "lines-group");
     linesGroup
       .selectAll(".pc-line")

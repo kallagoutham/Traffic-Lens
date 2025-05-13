@@ -15,11 +15,47 @@ export default function TimeSeries({
     text: "#333333",
     grid: "#e0e0e0",
   },
+  themeColor,
 }) {
   const containerRef = useRef();
   const hourlyChartRef = useRef();
   const weekdayChartRef = useRef();
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+
+  if (themeColor === "red") {
+    theme = {
+      primary: "#cc0000",
+      secondary: "#4d79ff",
+      background: "#ffffff",
+      text: "#333333",
+      grid: "#e0e0e0",
+    };
+  } else if (themeColor === "yellow") {
+    theme = {
+      primary: "#ffcc00",
+      secondary: "#4d79ff",
+      background: "#ffffff",
+      text: "#333333",
+      grid: "#e0e0e0",
+    };
+  } else if (themeColor === "green") {
+    theme = {
+      primary: "#00cc00",
+      secondary: "#4d79ff",
+      background: "#ffffff",
+      text: "#333333",
+      grid: "#e0e0e0",
+    };
+  } else {
+    // fallback to red if themeColor is unrecognized
+    theme = {
+      primary: "#cc0000",
+      secondary: "#4d79ff",
+      background: "#ffffff",
+      text: "#333333",
+      grid: "#e0e0e0",
+    };
+  }
 
   // Responsive dimensions
   useEffect(() => {
@@ -340,10 +376,24 @@ export default function TimeSeries({
       .range([0, innerW])
       .padding(0.05);
     const yScale = d3.scaleBand().domain(days).range([0, innerH]).padding(0.05);
-    const colorScale = d3
-      .scaleSequential()
-      .domain([0, 1])
-      .interpolator(d3.interpolateReds);
+    // pick the right d3 interpolator
+    function getInterpolator(themeColor) {
+      switch (themeColor) {
+        case "red":
+          return d3.interpolateReds;
+        case "yellow":
+          return d3.interpolateOranges; // d3’s built-in “Oranges” scheme
+        case "green":
+          return d3.interpolateGreens;
+        default:
+          return d3.interpolateReds;
+      }
+    }
+
+    // then:
+    const interp = getInterpolator(themeColor);
+
+    const colorScale = d3.scaleSequential().domain([0, 1]).interpolator(interp);
 
     g.selectAll(".cell")
       .data(heatmapData)
