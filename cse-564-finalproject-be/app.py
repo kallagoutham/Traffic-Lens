@@ -19,10 +19,17 @@ df_all['month'] = df_all['Start_Time'].dt.month
 df_all['year'] = df_all['Start_Time'].dt.year
 df_all['weekday'] = df_all['Start_Time'].dt.day_name()
 
-def get_df_for_state(state):
-    """Return filtered DataFrame if state is given, else full DataFrame."""
+def get_df_for_state(state, visible_states=None):
+    """
+    Return filtered DataFrame based on state and visible_states parameters:
+    - If state is provided, filter only for that state
+    - If visible_states is provided and state is not, filter for all visible states
+    - If neither is provided, return full DataFrame
+    """
     if state and state not in ('ALL', 'null', 'undefined'):
         return df_all[df_all['State'] == state]
+    elif visible_states and isinstance(visible_states, list) and len(visible_states) > 0:
+        return df_all[df_all['State'].isin(visible_states)]
     return df_all
 
 def filter_by_time(df, start_time, end_time):
@@ -66,13 +73,24 @@ def filter_by_pcp_values(df, args):
     
     return filtered_df
 
+def parse_visible_states(args):
+    """Parse visible_states from the request arguments"""
+    visible_states_param = args.get('visibleStates')
+    if visible_states_param and visible_states_param not in ('null', 'undefined', ''):
+        # Split comma-separated list and filter out empty strings
+        return [state for state in visible_states_param.split(',') if state]
+    return None
+
 def apply_all_filters(state=None, args=None):
     """Apply all filters to the DataFrame in the correct order."""
     if args is None:
         args = {}
-        
-    # Get state-filtered dataframe
-    df = get_df_for_state(state)
+    
+    # Parse visible states
+    visible_states = parse_visible_states(args)
+    
+    # Get state-filtered dataframe (includes visible states logic)
+    df = get_df_for_state(state, visible_states)
     
     # Apply time filter
     start_time = args.get('startTime')
@@ -92,7 +110,7 @@ def health_check():
 # ─── State counts ────────────────────────────────────────────────────────────
 @app.route('/api/state-count', methods=['GET'])
 def state_count():
-    df = apply_all_filters(args=request.args)
+    df = apply_all_filters(request.args.get('state'), request.args)
     data = (
         df['State']
         .value_counts()
@@ -172,7 +190,7 @@ def weekday_count():
 @app.route('/api/parallel', methods=['GET'])
 def parallel():
     state = request.args.get('state')
-    df = apply_all_filters(state, request.args)
+    visible_states = parse_visible_states(request.args)
     
     # For PCP data, we don't want to apply PCP filters to itself
     # This ensures the scales stay consistent
@@ -180,7 +198,7 @@ def parallel():
     
     start_time = request.args.get('startTime')
     end_time = request.args.get('endTime')
-    df = filter_by_time(get_df_for_state(state), start_time, end_time)
+    df = filter_by_time(get_df_for_state(state, visible_states), start_time, end_time)
     
     weather_attributes = [
         'Severity', 
@@ -350,9 +368,16 @@ def debug_filters():
     # Check which filters would be applied
     applied_filters = []
     
+    # Check state filter
     if 'state' in request.args and request.args.get('state') not in ('ALL', 'null', 'undefined'):
         applied_filters.append(f"State: {request.args.get('state')}")
     
+    # Check visible states filter
+    visible_states = parse_visible_states(request.args)
+    if visible_states:
+        applied_filters.append(f"Visible States: {', '.join(visible_states)}")
+    
+    # Check time filter
     if 'startTime' in request.args and 'endTime' in request.args:
         applied_filters.append(f"Time: {request.args.get('startTime')}:00 - {request.args.get('endTime')}:00")
     

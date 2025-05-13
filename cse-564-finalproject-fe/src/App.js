@@ -24,6 +24,7 @@ export default function App() {
   const [countyLoading, setCountyLoading] = useState(false);
   const [zipLoading, setZipLoading] = useState(false);
   const [themeColor, setThemeColor] = useState('red');
+  const [statesVisibleOnMap, setStatesVisibleOnMap] = useState([]);
 
   // Added state for RadialBarChart
   const [poiData, setPoiData] = useState(null);
@@ -103,172 +104,177 @@ export default function App() {
     setShouldRefetchData(true);
   }, []);
 
-  useEffect(() => {
-    if (!shouldRefetchData && filtersRef.current === filtersForUI) return;
-      setShouldRefetchData(false);
-    const params = {};
-    if (selectedState) params.state = selectedState;
-    
-    const filters = filtersRef.current;
-    if (filters.timeRange) {
-      params.startTime = filters.timeRange.start;
-      params.endTime   = filters.timeRange.end;
-    }
-    
-    Object.entries(filters.pcpValues).forEach(([key, [min, max]]) => {
-      params[`${key}_min`] = min;
-      params[`${key}_max`] = max;
-    });
-    
-    const qs = new URLSearchParams(params).toString();
-    
-    // Load state data
-    fetch(`${API_BASE_URL}${ENDPOINTS.STATE_COUNT}?${qs}`)
+ // Add statesVisibleOnMap to the filters
+useEffect(() => {
+  if (!shouldRefetchData && filtersRef.current === filtersForUI) return;
+    setShouldRefetchData(false);
+  const params = {};
+  if (selectedState) params.state = selectedState;
+  
+  if (!selectedState && statesVisibleOnMap && statesVisibleOnMap.length > 0) {
+    params.visibleStates = statesVisibleOnMap.join(',');
+  }
+  
+  const filters = filtersRef.current;
+  if (filters.timeRange) {
+    params.startTime = filters.timeRange.start;
+    params.endTime   = filters.timeRange.end;
+  }
+  
+  Object.entries(filters.pcpValues).forEach(([key, [min, max]]) => {
+    params[`${key}_min`] = min;
+    params[`${key}_max`] = max;
+  });
+  
+  const qs = new URLSearchParams(params).toString();
+  
+  // Load state data
+  fetch(`${API_BASE_URL}${ENDPOINTS.STATE_COUNT}?${qs}`)
+    .then((r) => r.json())
+    .then(setStateData)
+    .catch((err) => console.error("Failed to load state data:", err));
+
+  // Load ZIP code data
+  fetch(`${API_BASE_URL}${ENDPOINTS.ZIP_COUNT}?${qs}`)
+    .then((r) => r.json())
+    .then(setZipData)
+    .catch((err) => console.error("Failed to load ZIP data:", err));
+
+  // Load hourly data with loading state
+  setTimeLoading(true);
+  fetch(`${API_BASE_URL}${ENDPOINTS.HOURLY}?${qs}`)
+    .then((r) => r.json())
+    .then(setTimeData)
+    .catch((err) => {
+      console.error("Failed to load hourly data:", err);
+      setTimeData([]);
+    })
+    .finally(() => setTimeLoading(false));
+
+  // Load parallel coordinates data - do not reload if brushes are active to prevent data jumping
+  if (Object.keys(filters.pcpValues).length === 0) {
+    fetch(`${API_BASE_URL}${ENDPOINTS.PARALLEL}?${qs}`)
       .then((r) => r.json())
-      .then(setStateData)
-      .catch((err) => console.error("Failed to load state data:", err));
+      .then(setParData)
+      .catch((err) => console.error("Failed to load parallel data:", err));
+  }
 
-    // Load ZIP code data
-    fetch(`${API_BASE_URL}${ENDPOINTS.ZIP_COUNT}?${qs}`)
+  // Load weekday data with loading state
+  setWeekdayLoading(true);
+  fetch(`${API_BASE_URL}${ENDPOINTS.WEEKDAY_COUNT}?${qs}`)
+    .then((r) => r.json())
+    .then((data) => setWeekdayData(data))
+    .catch((err) => {
+      console.error("Failed to load weekday data:", err);
+      setWeekdayData([]);
+    })
+    .finally(() => setWeekdayLoading(false));
+
+  if (selectedState) {
+    setLocationLoading(true);
+    fetch(`${API_BASE_URL}${ENDPOINTS.ACCIDENT_LOCATIONS}?${qs}`)
       .then((r) => r.json())
-      .then(setZipData)
-      .catch((err) => console.error("Failed to load ZIP data:", err));
-
-    // Load hourly data with loading state
-    setTimeLoading(true);
-    fetch(`${API_BASE_URL}${ENDPOINTS.HOURLY}?${qs}`)
-      .then((r) => r.json())
-      .then(setTimeData)
+      .then((data) => setLocationData(data))
       .catch((err) => {
-        console.error("Failed to load hourly data:", err);
-        setTimeData([]);
+        console.error("Failed to load location data:", err);
+        setLocationData([]);
       })
-      .finally(() => setTimeLoading(false));
+      .finally(() => setLocationLoading(false));
+  } else {
+    setLocationData([]);
+  }
 
-    // Load parallel coordinates data - do not reload if brushes are active to prevent data jumping
-    if (Object.keys(filters.pcpValues).length === 0) {
-      fetch(`${API_BASE_URL}${ENDPOINTS.PARALLEL}?${qs}`)
-        .then((r) => r.json())
-        .then(setParData)
-        .catch((err) => console.error("Failed to load parallel data:", err));
-    }
-
-    // Load weekday data with loading state
-    setWeekdayLoading(true);
-    fetch(`${API_BASE_URL}${ENDPOINTS.WEEKDAY_COUNT}?${qs}`)
-      .then((r) => r.json())
-      .then((data) => setWeekdayData(data))
-      .catch((err) => {
-        console.error("Failed to load weekday data:", err);
-        setWeekdayData([]);
-      })
-      .finally(() => setWeekdayLoading(false));
-
-    if (selectedState) {
-      setLocationLoading(true);
-      fetch(`${API_BASE_URL}${ENDPOINTS.ACCIDENT_LOCATIONS}?${qs}`)
-        .then((r) => r.json())
-        .then((data) => setLocationData(data))
-        .catch((err) => {
-          console.error("Failed to load location data:", err);
-          setLocationData([]);
-        })
-        .finally(() => setLocationLoading(false));
-    } else {
-      setLocationData([]);
-    }
-
-    // Load county data - works with or without selected state
-    setCountyLoading(true);
-    fetch(`${API_BASE_URL}${ENDPOINTS.COUNTY_COUNT}?${qs}`)
-      .then((r) => r.json())
-      .then((data) => setCountyData(data))
-      .catch((err) => {
-        console.error("Failed to load county data:", err);
-        setCountyData([]);
-      })
-      .finally(() => setCountyLoading(false));
-      
-    // Load POI data for RadialBarChart
-    setPoiLoading(true);
-    fetch(`${API_BASE_URL}${ENDPOINTS.POI_DATA}?${qs}`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`Status: ${r.status}`);
-        return r.json();
-      })
-      .then((result) => {
-        // compute counts if missing
-        if (result.yes_no_data && result.total_accidents) {
-          result.yes_no_data = result.yes_no_data.map(item => ({
-            ...item,
-            count: item.count ?? Math.round(item.percentage/100 * result.total_accidents)
-          }));
-        }
-        setPoiData(result);
-        setPoiError(null);
-      })
-      .catch((err) => {
-        console.error("Failed to load POI data:", err);
-        setPoiError("Failed to load POI data");
-        setPoiData(null);
-      })
-      .finally(() => setPoiLoading(false));
-      
-    // Load Sunburst Chart data
-    setSunburstLoading(true);
-    setSunburstError(null);
+  // Load county data - works with or without selected state
+  setCountyLoading(true);
+  fetch(`${API_BASE_URL}${ENDPOINTS.COUNTY_COUNT}?${qs}`)
+    .then((r) => r.json())
+    .then((data) => setCountyData(data))
+    .catch((err) => {
+      console.error("Failed to load county data:", err);
+      setCountyData([]);
+    })
+    .finally(() => setCountyLoading(false));
     
-    fetch(`${API_BASE_URL}${ENDPOINTS.SUNBURST}?${qs}`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`Failed to fetch data (${r.status})`);
-        return r.json();
-      })
-      .then((json) => {
-        // Process the data to remove days layer and sort seasons
-        if (json && json.children) {
-          const seasonOrder = ["Spring", "Summer", "Fall", "Winter"];
-          
-          // Sort seasons according to the defined order
-          json.children.sort((a, b) => {
-            return seasonOrder.indexOf(a.name) - seasonOrder.indexOf(b.name);
-          });
-          
-          // Define month order within each season
-          const monthOrder = {
-            Winter: ["December", "January", "February"],
-            Spring: ["March", "April", "May"],
-            Summer: ["June", "July", "August"],
-            Fall: ["September", "October", "November"],
-          };
-          
-          // Sort each season's months chronologically and remove days layer
-          json.children.forEach(season => {
-            if (season.children && monthOrder[season.name]) {
-              // Sort months within each season
-              season.children.sort((a, b) => {
-                return monthOrder[season.name].indexOf(a.name) - 
-                       monthOrder[season.name].indexOf(b.name);
-              });
-              
-              season.children.forEach(month => {
-                if (month.children && month.children.length > 0) {
-                  month.value = month.children.reduce((sum, day) => sum + (day.value || 0), 0);
-                  delete month.children;
-                }
-              });
-            }
-          });
-        }
-        setSunburstData(json);
-        setSunburstError(null);
-      })
-      .catch((err) => {
-        console.error("Failed to load sunburst data:", err);
-        setSunburstError(err.message);
-        setSunburstData(null);
-      })
-      .finally(() => setSunburstLoading(false));
-  }, [selectedState, shouldRefetchData, themeColor, filtersForUI]);
+  // Load POI data for RadialBarChart
+  setPoiLoading(true);
+  fetch(`${API_BASE_URL}${ENDPOINTS.POI_DATA}?${qs}`)
+    .then((r) => {
+      if (!r.ok) throw new Error(`Status: ${r.status}`);
+      return r.json();
+    })
+    .then((result) => {
+      // compute counts if missing
+      if (result.yes_no_data && result.total_accidents) {
+        result.yes_no_data = result.yes_no_data.map(item => ({
+          ...item,
+          count: item.count ?? Math.round(item.percentage/100 * result.total_accidents)
+        }));
+      }
+      setPoiData(result);
+      setPoiError(null);
+    })
+    .catch((err) => {
+      console.error("Failed to load POI data:", err);
+      setPoiError("Failed to load POI data");
+      setPoiData(null);
+    })
+    .finally(() => setPoiLoading(false));
+    
+  // Load Sunburst Chart data
+  setSunburstLoading(true);
+  setSunburstError(null);
+  
+  fetch(`${API_BASE_URL}${ENDPOINTS.SUNBURST}?${qs}`)
+    .then((r) => {
+      if (!r.ok) throw new Error(`Failed to fetch data (${r.status})`);
+      return r.json();
+    })
+    .then((json) => {
+      // Process the data to remove days layer and sort seasons
+      if (json && json.children) {
+        const seasonOrder = ["Spring", "Summer", "Fall", "Winter"];
+        
+        // Sort seasons according to the defined order
+        json.children.sort((a, b) => {
+          return seasonOrder.indexOf(a.name) - seasonOrder.indexOf(b.name);
+        });
+        
+        // Define month order within each season
+        const monthOrder = {
+          Winter: ["December", "January", "February"],
+          Spring: ["March", "April", "May"],
+          Summer: ["June", "July", "August"],
+          Fall: ["September", "October", "November"],
+        };
+        
+        // Sort each season's months chronologically and remove days layer
+        json.children.forEach(season => {
+          if (season.children && monthOrder[season.name]) {
+            // Sort months within each season
+            season.children.sort((a, b) => {
+              return monthOrder[season.name].indexOf(a.name) - 
+                     monthOrder[season.name].indexOf(b.name);
+            });
+            
+            season.children.forEach(month => {
+              if (month.children && month.children.length > 0) {
+                month.value = month.children.reduce((sum, day) => sum + (day.value || 0), 0);
+                delete month.children;
+              }
+            });
+          }
+        });
+      }
+      setSunburstData(json);
+      setSunburstError(null);
+    })
+    .catch((err) => {
+      console.error("Failed to load sunburst data:", err);
+      setSunburstError(err.message);
+      setSunburstData(null);
+    })
+    .finally(() => setSunburstLoading(false));
+}, [selectedState, shouldRefetchData, themeColor, filtersForUI, statesVisibleOnMap]); 
 
   useEffect(() => {
     resetFilters();
@@ -470,6 +476,7 @@ export default function App() {
               onStateSelect={setSelectedState}
               onStateHover={setHoveredState}
               themeColor={themeColor}
+              setStatesVisibleOnMap={setStatesVisibleOnMap}
             />
           </div>
         )}
