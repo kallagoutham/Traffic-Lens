@@ -280,10 +280,9 @@ export default function ParallelCoords({
         return yScales[dim](d);
       })
       .curve(d3.curveMonotoneX);
-    const colorScale = d3
-      .scaleSequential()
-      .domain([1, 4])
-      .interpolator(d3.interpolateReds);
+    const colorScale = d3.scaleSequential()
+    .domain([1, 4])
+    .interpolator(d3.interpolateRgb("#f8c0c0", "#cd0505"));
     const linesGroup = g.append("g").attr("class", "lines-group");
     linesGroup
       .selectAll(".pc-line")

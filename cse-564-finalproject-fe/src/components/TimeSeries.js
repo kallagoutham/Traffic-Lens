@@ -1,22 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 
-/**
- * TimeSeries - A component for visualizing time-based data distributions
- * 
- * Props:
- *  - hourlyData: Array<{ hour: number; count: number }>
- *  - weekdayData: Array<{ weekday: number; count: number }>
- *  - hourlyLoading: boolean
- *  - weekdayLoading: boolean
- *  - theme: {
- *      primary: string,    // Primary color for hourly chart
- *      secondary: string,  // Primary color for weekday chart
- *      background: string, // Background color
- *      text: string,       // Text color
- *      grid: string        // Grid line color
- *    }
- */
 export default function TimeSeries({
   hourlyData = [],
   weekdayData = [],
@@ -293,24 +277,15 @@ export default function TimeSeries({
         .style('opacity', 0)
         .style('z-index', 100);
     }
-
-    // Generate day names (row labels)
     const days = [
       'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
     ];
-    
-    // Generate hours (column labels)
     const hours = Array.from({ length: 24 }, (_, i) => i);
     
-    // Generate random heatmap data
-    // In a real application, this would be replaced with actual data
     const heatmapData = [];
     days.forEach((day, dayIndex) => {
       hours.forEach(hour => {
-        // Create random heat value (0-1)
         let value;
-        
-        // Simulate more accidents during rush hours on weekdays
         if ((hour >= 7 && hour <= 9) || (hour >= 16 && hour <= 18)) {
           if (dayIndex >= 1 && dayIndex <= 5) { // Weekdays (Mon-Fri)
             value = Math.random() * 0.5 + 0.5; // Higher values (0.5-1.0)
@@ -318,10 +293,8 @@ export default function TimeSeries({
             value = Math.random() * 0.3 + 0.2; // Medium values (0.2-0.5)
           }
         } else if (hour >= 22 || hour <= 5) {
-          // Late night/early morning
-          value = Math.random() * 0.3; // Lower values (0-0.3)
+          value = Math.random() * 0.3; 
         } else {
-          // Regular hours
           value = Math.random() * 0.6 + 0.1; // Medium values (0.1-0.7)
         }
         
@@ -333,7 +306,6 @@ export default function TimeSeries({
       });
     });
     
-    // Create scales
     const xScale = d3.scaleBand()
       .domain(hours)
       .range([0, innerW])
@@ -347,7 +319,7 @@ export default function TimeSeries({
     // Create color scale (white to blue)
     const colorScale = d3.scaleSequential()
       .domain([0, 1])
-      .interpolator(d3.interpolateBlues);
+      .interpolator(d3.interpolateReds);
     
     // Draw heatmap cells
     g.selectAll('.cell')
