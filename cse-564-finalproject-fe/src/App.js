@@ -1,3 +1,4 @@
+// Updated App.js with SunburstChart data fetching added
 import React, { useEffect, useState } from "react";
 import MapChart from "./components/MapChart";
 import TimeSeries from "./components/TimeSeries";
@@ -23,6 +24,17 @@ export default function App() {
   const [countyData, setCountyData] = useState([]);
   const [countyLoading, setCountyLoading] = useState(false);
   const [zipLoading, setZipLoading] = useState(false);
+  
+  // Added state for RadialBarChart
+  const [poiData, setPoiData] = useState(null);
+  const [poiLoading, setPoiLoading] = useState(false);
+  const [poiError, setPoiError] = useState(null);
+  
+  // Added state for SunburstChart
+  const [sunburstData, setSunburstData] = useState(null);
+  const [sunburstLoading, setSunburstLoading] = useState(false);
+  const [sunburstError, setSunburstError] = useState(null);
+  
   const [filters, setFilters] = useState({
     timeRange: null, 
     pcpValues: {},  
@@ -33,7 +45,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    // only add start/end if we’ve brushed a timeRange
+    // only add start/end if we've brushed a timeRange
     const params = {};
     if (selectedState) params.state = selectedState;
     if (filters.timeRange) {
@@ -45,6 +57,7 @@ export default function App() {
       params[`${key}_max`] = max;
     });
     const qs = new URLSearchParams(params).toString();
+    
     // Load state data
     fetch(`${API_BASE_URL}${ENDPOINTS.STATE_COUNT}?${qs}`)
       .then((r) => r.json())
@@ -109,7 +122,88 @@ export default function App() {
         setCountyData([]);
       })
       .finally(() => setCountyLoading(false));
-  }, [selectedState,filters]);
+      
+    // Load POI data for RadialBarChart
+    setPoiLoading(true);
+    fetch(`${API_BASE_URL}${ENDPOINTS.POI_DATA}?${qs}`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`Status: ${r.status}`);
+        return r.json();
+      })
+      .then((result) => {
+        // compute counts if missing
+        if (result.yes_no_data && result.total_accidents) {
+          result.yes_no_data = result.yes_no_data.map(item => ({
+            ...item,
+            count: item.count ?? Math.round(item.percentage/100 * result.total_accidents)
+          }));
+        }
+        setPoiData(result);
+        setPoiError(null);
+      })
+      .catch((err) => {
+        console.error("Failed to load POI data:", err);
+        setPoiError("Failed to load POI data");
+        setPoiData(null);
+      })
+      .finally(() => setPoiLoading(false));
+      
+    // Load Sunburst Chart data
+    setSunburstLoading(true);
+    setSunburstError(null);
+    
+    fetch(`${API_BASE_URL}${ENDPOINTS.SUNBURST}?${qs}`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`Failed to fetch data (${r.status})`);
+        return r.json();
+      })
+      .then((json) => {
+        // Process the data to remove days layer and sort seasons
+        if (json && json.children) {
+          const seasonOrder = ["Spring", "Summer", "Fall", "Winter"];
+          
+          // Sort seasons according to the defined order
+          json.children.sort((a, b) => {
+            return seasonOrder.indexOf(a.name) - seasonOrder.indexOf(b.name);
+          });
+          
+          // Define month order within each season
+          const monthOrder = {
+            Winter: ["December", "January", "February"],
+            Spring: ["March", "April", "May"],
+            Summer: ["June", "July", "August"],
+            Fall: ["September", "October", "November"],
+          };
+          
+          // Sort each season's months chronologically and remove days layer
+          json.children.forEach(season => {
+            if (season.children && monthOrder[season.name]) {
+              // Sort months within each season
+              season.children.sort((a, b) => {
+                return monthOrder[season.name].indexOf(a.name) - 
+                       monthOrder[season.name].indexOf(b.name);
+              });
+              
+              season.children.forEach(month => {
+                if (month.children && month.children.length > 0) {
+                  month.value = month.children.reduce((sum, day) => sum + (day.value || 0), 0);
+                  delete month.children;
+                }
+              });
+            }
+          });
+        }
+        setSunburstData(json);
+        setSunburstError(null);
+      })
+      .catch((err) => {
+        console.error("Failed to load sunburst data:", err);
+        setSunburstError(err.message);
+        setSunburstData(null);
+      })
+      .finally(() => setSunburstLoading(false));
+      
+  }, [selectedState, filters]);
 
   const stateOptions = stateData.map((d) => ({
     value: d.state,
@@ -127,20 +221,58 @@ export default function App() {
         }}
       >
         <h1 style={{ margin: 0 }}>🚦 Traffic Accident Analysis Dashboard</h1>
-        {selectedState && (
-          <button
-            onClick={() => setSelectedState(null)}
-            style={{
-              padding: "6px 12px",
-              fontSize: "0.9rem",
-              cursor: "pointer",
-              border: "1px solid #ccc",
-              borderRadius: "4px",
-              background: "#fff",
-            }}
-          >
-            Reset View
-          </button>
+        {(selectedState || filters.timeRange || Object.keys(filters.pcpValues).length > 0) && (
+          <div style={{ display: "flex", gap: "10px" }}>
+            {selectedState && (
+              <button
+                onClick={() => setSelectedState(null)}
+                style={{
+                  padding: "6px 12px",
+                  fontSize: "0.9rem",
+                  cursor: "pointer",
+                  border: "1px solid #ccc",
+                  borderRadius: "4px",
+                  background: "#fff",
+                }}
+              >
+                Reset State
+              </button>
+            )}
+            {(filters.timeRange || Object.keys(filters.pcpValues).length > 0) && (
+              <button
+                onClick={() => setFilters({ timeRange: null, pcpValues: {} })}
+                style={{
+                  padding: "6px 12px",
+                  fontSize: "0.9rem",
+                  cursor: "pointer",
+                  border: "1px solid #ccc",
+                  borderRadius: "4px",
+                  background: "#fff",
+                }}
+              >
+                Reset Filters
+              </button>
+            )}
+            {(selectedState || filters.timeRange || Object.keys(filters.pcpValues).length > 0) && (
+              <button
+                onClick={() => {
+                  setSelectedState(null);
+                  setFilters({ timeRange: null, pcpValues: {} });
+                }}
+                style={{
+                  padding: "6px 12px",
+                  fontSize: "0.9rem",
+                  cursor: "pointer",
+                  border: "1px solid #cc0000",
+                  borderRadius: "4px",
+                  background: "#fff",
+                  color: "#cc0000",
+                }}
+              >
+                Reset All
+              </button>
+            )}
+          </div>
         )}
       </header>
 
@@ -182,10 +314,12 @@ export default function App() {
           <div className="chart-title">
             Severity / Distance / Hour Relationships
           </div>
-          <ParallelCoords data={parData} onPCPSelect={(values) => updateFilters({ pcpValues: values })}
-/>
+          <ParallelCoords 
+            data={parData} 
+            onPCPSelect={(values) => updateFilters({ pcpValues: values })}
+          />
         </div>
-         <div className="chart-card">
+        <div className="chart-card">
           <div className="chart-title">
             {selectedState 
               ? `${selectedState} County Distribution` 
@@ -207,19 +341,57 @@ export default function App() {
         <div className="chart-card">
           <div className="chart-title">
             Accident Timeline Sunburst
+            {filters.timeRange && (
+              <span style={{ 
+                fontSize: "0.8rem", 
+                fontWeight: "normal", 
+                marginLeft: "8px",
+                color: "#666"
+              }}>
+                (Time: {filters.timeRange.start}:00 - {filters.timeRange.end}:00)
+              </span>
+            )}
           </div>
           <SunburstChart
-            selectedState={selectedState}
+            data={sunburstData}
+            loading={sunburstLoading}
+            error={sunburstError}
             width={500}
             height={500}
+            filterInfo={
+              Object.keys(filters).some(key => 
+                filters[key] && 
+                (typeof filters[key] === 'object' ? Object.keys(filters[key]).length > 0 : true)
+              ) ? filters : null
+            }
           />
         </div>
-         <div className="chart-card">
-          <div className="chart-title">Point of Interest Analysis</div>
+        <div className="chart-card">
+          <div className="chart-title">
+            Point of Interest Analysis
+            {filters.timeRange && (
+              <span style={{ 
+                fontSize: "0.8rem", 
+                fontWeight: "normal", 
+                marginLeft: "8px",
+                color: "#666"
+              }}>
+                (Time: {filters.timeRange.start}:00 - {filters.timeRange.end}:00)
+              </span>
+            )}
+          </div>
           <RadialBarChart
-            selectedState={selectedState}
+            data={poiData}
+            loading={poiLoading}
+            error={poiError}
             width={500}
             height={500}
+            filterInfo={
+              Object.keys(filters).some(key => 
+                filters[key] && 
+                (typeof filters[key] === 'object' ? Object.keys(filters[key]).length > 0 : true)
+              ) ? filters : null
+            }
           />
         </div>
       </div>

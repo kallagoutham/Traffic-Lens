@@ -13,10 +13,10 @@ df_all = pd.concat(
     ignore_index=True
 )
 df_all['Start_Time'] = pd.to_datetime(df_all['Start_Time'])
-df_all['hour']       = df_all['Start_Time'].dt.hour
-df_all['day']        = df_all['Start_Time'].dt.day
-df_all['month']      = df_all['Start_Time'].dt.month
-df_all['year']       = df_all['Start_Time'].dt.year
+df_all['hour'] = df_all['Start_Time'].dt.hour
+df_all['day'] = df_all['Start_Time'].dt.day
+df_all['month'] = df_all['Start_Time'].dt.month
+df_all['year'] = df_all['Start_Time'].dt.year
 df_all['weekday'] = df_all['Start_Time'].dt.day_name()
 
 def get_df_for_state(state):
@@ -24,6 +24,14 @@ def get_df_for_state(state):
     if state and state not in ('ALL', 'null', 'undefined'):
         return df_all[df_all['State'] == state]
     return df_all
+
+def filter_by_time(df, start_time, end_time):
+    """Filter DataFrame by start_time and end_time if they are valid."""
+    if start_time not in (None, 'undefined') and end_time not in (None, 'undefined'):
+        start_time = int(start_time)
+        end_time = int(end_time)
+        return df[(df['hour'] >= start_time) & (df['hour'] <= end_time)]
+    return df
 
 # ─── Health check ───────────────────────────────────────────────────────────
 @app.route('/api/health', methods=['GET'])
@@ -33,8 +41,11 @@ def health_check():
 # ─── State counts ────────────────────────────────────────────────────────────
 @app.route('/api/state-count', methods=['GET'])
 def state_count():
+    start_time = request.args.get('startTime')
+    end_time = request.args.get('endTime')
+    df = filter_by_time(df_all, start_time, end_time)
     data = (
-        df_all['State']
+        df['State']
         .value_counts()
         .rename_axis('state')
         .reset_index(name='count')
@@ -46,10 +57,12 @@ def state_count():
 @app.route('/api/zip-count', methods=['GET'])
 def zip_count():
     state = request.args.get('state')
-    df = get_df_for_state(state)
+    start_time = request.args.get('startTime')
+    end_time = request.args.get('endTime')
+    df = filter_by_time(get_df_for_state(state), start_time, end_time)
     top10 = (
         df['Zipcode']
-        .astype(str).str.slice(0,5)
+        .astype(str).str.slice(0, 5)
         .value_counts()
         .head(10)
         .rename_axis('zipcode')
@@ -58,16 +71,16 @@ def zip_count():
     )
     return jsonify(top10), 200
 
-# ─── NEW - County counts ───────────────────────────────────────────────────────
+# ─── County counts ───────────────────────────────────────────────────────────
 @app.route('/api/county-count', methods=['GET'])
 def county_count():
     state = request.args.get('state')
+    start_time = request.args.get('startTime')
+    end_time = request.args.get('endTime')
     limit = request.args.get('limit', default=15, type=int)
-    
-    df = get_df_for_state(state)
+    df = filter_by_time(get_df_for_state(state), start_time, end_time)
     if 'County' not in df.columns:
         return jsonify({"error": "County data not available"}), 404
-    
     top_counties = (
         df['County']
         .fillna('Unknown')
@@ -83,7 +96,9 @@ def county_count():
 @app.route('/api/hourly', methods=['GET'])
 def hourly():
     state = request.args.get('state')
-    df = get_df_for_state(state)
+    start_time = request.args.get('startTime')
+    end_time = request.args.get('endTime')
+    df = filter_by_time(get_df_for_state(state), start_time, end_time)
     data = (
         df.groupby('hour')
         .size()
@@ -96,9 +111,10 @@ def hourly():
 @app.route('/api/weekday-count', methods=['GET'])
 def weekday_count():
     state = request.args.get('state')
-    df = get_df_for_state(state)
-    # ensure Monday→Sunday order
-    weekdays = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+    start_time = request.args.get('startTime')
+    end_time = request.args.get('endTime')
+    df = filter_by_time(get_df_for_state(state), start_time, end_time)
+    weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     counts = (
         df['weekday']
         .value_counts()
@@ -109,11 +125,13 @@ def weekday_count():
     )
     return jsonify(counts), 200
 
-# ─── Parallel‐coords data ─────────────────────────────────────
+# ─── Parallel‐coords data ───────────────────────────────────────────────────
 @app.route('/api/parallel', methods=['GET'])
 def parallel():
     state = request.args.get('state')
-    df = get_df_for_state(state)
+    start_time = request.args.get('startTime')
+    end_time = request.args.get('endTime')
+    df = filter_by_time(get_df_for_state(state), start_time, end_time)
     weather_attributes = [
         'Severity', 
         'Temperature(F)', 
@@ -126,14 +144,15 @@ def parallel():
     available_columns = [col for col in weather_attributes if col in df.columns]
     selected_data = df[available_columns].dropna()
     result = selected_data.head(500).to_dict(orient='records')
-    result = result 
     return jsonify(result), 200
 
 # ─── Yearly trends ──────────────────────────────────────────────────────────
 @app.route('/api/yearly-trend', methods=['GET'])
 def yearly_trend():
     state = request.args.get('state')
-    df = get_df_for_state(state)
+    start_time = request.args.get('startTime')
+    end_time = request.args.get('endTime')
+    df = filter_by_time(get_df_for_state(state), start_time, end_time)
     yearly = (
         df['year']
         .value_counts()
@@ -144,10 +163,12 @@ def yearly_trend():
     )
     return jsonify(yearly), 200
 
-# ─── Location Data ──────────────────────────────────────────────────────
+# ─── Location Data ──────────────────────────────────────────────────────────
 @app.route('/api/accident-locations', methods=['GET'])
 def accident_locations():
     state = request.args.get('state')
+    start_time = request.args.get('startTime')
+    end_time = request.args.get('endTime')
     if not state:
         return jsonify({"error": "State parameter is required"}), 400
     csv_path = f"../filtered_datasets/traffic-accident-filtered_{state}.csv"
@@ -156,11 +177,17 @@ def accident_locations():
     except FileNotFoundError:
         return jsonify({"error": f"No data file for state '{state}'"}), 404
     tdf['Start_Time'] = pd.to_datetime(tdf['Start_Time'], errors='coerce')
+
+    # Add the 'hour' column to tdf
+    tdf['hour'] = tdf['Start_Time'].dt.hour
+
+    # Apply the time filter
+    tdf = filter_by_time(tdf, start_time, end_time)
+
     cols = ['Start_Lat', 'Start_Lng', 'Severity', 'Start_Time']
     if 'Description' in tdf.columns:
         cols.append('Description')
-    filtered = tdf[cols]
-    filtered = filtered.dropna(subset=['Start_Lat', 'Start_Lng', 'Start_Time'])
+    filtered = tdf[cols].dropna(subset=['Start_Lat', 'Start_Lng', 'Start_Time'])
     if len(filtered) > 30000:
         filtered = filtered.sample(n=30000, random_state=42)
     filtered['Start_Time'] = filtered['Start_Time'].dt.strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -171,7 +198,10 @@ def accident_locations():
 @app.route('/api/sunburst', methods=['GET'])
 def sunburst_data():
     state = request.args.get('state')
+    start_time = request.args.get('startTime')
+    end_time = request.args.get('endTime')
     df = get_df_for_state(state)
+    df = filter_by_time(df, start_time, end_time)
 
     # drop rows missing Start_Time
     df = df.dropna(subset=['Start_Time'])
@@ -179,7 +209,6 @@ def sunburst_data():
     # derive month & weekday
     df['month']   = df['Start_Time'].dt.month
     df['weekday'] = df['Start_Time'].dt.day_name()
-
     # map month → season
     def to_season(m):
         if m in (12, 1, 2):   return 'Winter'
@@ -223,6 +252,9 @@ def sunburst_data():
 def poi_data():
     state = request.args.get('state')
     df = get_df_for_state(state)
+    start_time = request.args.get('startTime')
+    end_time = request.args.get('endTime')
+    df = filter_by_time(df, start_time, end_time)
     poi_columns = [
         'Amenity', 'Bump', 'Crossing', 'Give_Way', 'Junction', 
         'No_Exit', 'Railway', 'Roundabout', 'Station', 'Stop', 

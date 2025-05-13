@@ -1,40 +1,16 @@
-// components/RadialBarChart.js
-import React, { useEffect, useState, useRef } from "react";
-import { API_BASE_URL, ENDPOINTS } from "../constants/constants";
+// components/RadialBarChart.js - Updated to use data from App.js
+import React, { useState, useRef, useEffect } from "react";
 
-const RadialBarChart = ({ selectedState, width = 600, height = 400 }) => {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+const RadialBarChart = ({ 
+  data,
+  loading = false,
+  error = null,
+  width = 600, 
+  height = 400,
+  filterInfo = null 
+}) => {
   const [tooltip, setTooltip] = useState({ show: false, content: "", x: 0, y: 0 });
   const chartRef = useRef(null);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const qs = selectedState ? `?state=${selectedState}` : "";
-        const response = await fetch(`${API_BASE_URL}${ENDPOINTS.POI_DATA}${qs}`);
-        if (!response.ok) throw new Error(`Status: ${response.status}`);
-        const result = await response.json();
-        // compute counts if missing
-        if (result.yes_no_data && result.total_accidents) {
-          result.yes_no_data = result.yes_no_data.map(item => ({
-            ...item,
-            count: item.count ?? Math.round(item.percentage/100 * result.total_accidents)
-          }));
-        }
-        setData(result);
-      } catch (err) {
-        console.error(err);
-        setError("Failed to load POI data");
-        setData(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [selectedState]);
 
   // close tooltip on outside click
   useEffect(() => {
@@ -62,6 +38,44 @@ const RadialBarChart = ({ selectedState, width = 600, height = 400 }) => {
   const yesItem = data.yes_no_data.find(d => d.category === "Yes") || { percentage:0, count:0 };
   const noItem  = data.yes_no_data.find(d => d.category === "No")  || { percentage:0, count:0 };
 
+  // Format filter info for display
+  const renderFilterInfo = () => {
+    if (!filterInfo) return null;
+    
+    const filterDetails = [];
+    
+    if (filterInfo.timeRange) {
+      filterDetails.push(`Time: ${filterInfo.timeRange.start}:00 - ${filterInfo.timeRange.end}:00`);
+    }
+    
+    if (filterInfo.pcpValues && Object.keys(filterInfo.pcpValues).length > 0) {
+      Object.entries(filterInfo.pcpValues).forEach(([key, [min, max]]) => {
+        filterDetails.push(`${key}: ${min.toFixed(1)} - ${max.toFixed(1)}`);
+      });
+    }
+    
+    if (filterDetails.length === 0) return null;
+    
+    return (
+      <div style={{
+        position: "absolute",
+        top: 10,
+        right: 10,
+        background: "rgba(255, 255, 255, 0.9)",
+        padding: "6px 10px",
+        borderRadius: 4,
+        fontSize: 12,
+        border: "1px solid #eee",
+        maxWidth: "40%"
+      }}>
+        <div style={{ fontWeight: "bold", marginBottom: 4 }}>Active Filters:</div>
+        {filterDetails.map((detail, i) => (
+          <div key={i} style={{ fontSize: 11 }}>{detail}</div>
+        ))}
+      </div>
+    );
+  };
+
   // render the two charts
   return (
     <div 
@@ -71,6 +85,9 @@ const RadialBarChart = ({ selectedState, width = 600, height = 400 }) => {
         padding: 10
       }}
     >
+      {/* Display active filters if present */}
+      {renderFilterInfo()}
+      
       <svg width={width} height={height}>
         {/* ----- Radial Bars ----- */}
         {(() => {
@@ -181,9 +198,9 @@ const RadialBarChart = ({ selectedState, width = 600, height = 400 }) => {
         {/* ----- Yes/No Bar ----- */}
         {(() => {
           const barW = 60;
-          const barH = height * 0.5;
+          const barH = height * 0.6;
           const x0   = width * 1.05;
-          const y0   = (height-barH)/3.5;
+          const y0   = (height-barH)/2.25;
           const noH  = (noItem.percentage/100)*barH;
           const yesH = (yesItem.percentage/100)*barH;
           return (
@@ -245,6 +262,34 @@ const RadialBarChart = ({ selectedState, width = 600, height = 400 }) => {
             </g>
           );
         })()}
+        
+        {/* Filter visual indicator */}
+        {filterInfo && (
+          <g>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+              <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+            <circle 
+              cx={width - 20} 
+              cy={20} 
+              r={8} 
+              fill="#cc0000"
+              opacity={0.7}
+              filter="url(#glow)"
+            >
+              <animate 
+                attributeName="opacity" 
+                values="0.5;0.8;0.5" 
+                dur="2s" 
+                repeatCount="indefinite" 
+              />
+            </circle>
+          </g>
+        )}
       </svg>
 
       {/* Tooltip */}

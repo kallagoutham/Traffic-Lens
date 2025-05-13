@@ -1,75 +1,20 @@
+// components/SunburstChart.js - Updated to use data from App.js
 import React, { useRef, useEffect, useState } from "react";
 import * as d3 from "d3";
-import { API_BASE_URL, ENDPOINTS } from "../constants/constants";
 
 export default function SunburstChart({
-  selectedState = "",
+  data,
+  loading = false,
+  error = null,
   width = 600,
   height = 600,
+  filterInfo = null
 }) {
   const svgRef = useRef();
-  const [data, setData] = useState(null);
   const [activeSegment, setActiveSegment] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [expandedLevels, setExpandedLevels] = useState(2); 
-  const [error, setError] = useState(null);
+  const [expandedLevels, setExpandedLevels] = useState(2);
 
   const seasonOrder = ["Spring", "Summer", "Fall", "Winter"];
-
-  // Load data with enhanced error handling
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    const qs = selectedState ? `?state=${selectedState}` : "";
-    
-    fetch(`${API_BASE_URL}${ENDPOINTS.SUNBURST}${qs}`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`Failed to fetch data (${r.status})`);
-        return r.json();
-      })
-      .then((json) => {
-        // Process the data to remove days layer and sort seasons
-        if (json && json.children) {
-          // Sort seasons according to the defined order
-          json.children.sort((a, b) => {
-            return seasonOrder.indexOf(a.name) - seasonOrder.indexOf(b.name);
-          });
-          
-          // Define month order within each season
-          const monthOrder = {
-            Winter: ["December", "January", "February"],
-            Spring: ["March", "April", "May"],
-            Summer: ["June", "July", "August"],
-            Fall: ["September", "October", "November"],
-          };
-          
-          // Sort each season's months chronologically and remove days layer
-          json.children.forEach(season => {
-            if (season.children && monthOrder[season.name]) {
-              // Sort months within each season
-              season.children.sort((a, b) => {
-                return monthOrder[season.name].indexOf(a.name) - 
-                       monthOrder[season.name].indexOf(b.name);
-              });
-              
-              season.children.forEach(month => {
-                if (month.children && month.children.length > 0) {
-                  month.value = month.children.reduce((sum, day) => sum + (day.value || 0), 0);
-                  delete month.children;
-                }
-              });
-            }
-          });
-        }
-        setData(json);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error(err);
-        setError(err.message);
-        setLoading(false);
-      });
-  }, [selectedState]);
 
   useEffect(() => {
     if (!data) return;
@@ -139,22 +84,38 @@ export default function SunburstChart({
       .attr("r", radius + 10)
       .attr("fill", "url(#sunburst-background)");
 
-    svg
+    // Title text with filter info
+    const chartTitle = svg
       .append("text")
       .attr("x", width / 2)
       .attr("y", 30)
       .attr("text-anchor", "middle")
       .attr("font-size", "18px")
       .attr("font-weight", "bold")
-      .attr("fill", "#343a40")
-    
-    svg
-      .append("text")
-      .attr("x", width / 2)
-      .attr("y", 55)
-      .attr("text-anchor", "middle")
-      .attr("font-size", "14px")
-      .attr("fill", "#6c757d")
+      .attr("fill", "#343a40");    
+    // If there are active filters, add subtitle
+    if (filterInfo && (filterInfo.timeRange || Object.keys(filterInfo.pcpValues).length > 0)) {
+      svg
+        .append("text")
+        .attr("x", width / 2)
+        .attr("y", 55)
+        .attr("text-anchor", "middle")
+        .attr("font-size", "14px")
+        .attr("fill", "#6c757d")
+        .text(() => {
+          const filterTexts = [];
+          if (filterInfo.timeRange) {
+            filterTexts.push(`Time: ${filterInfo.timeRange.start}:00-${filterInfo.timeRange.end}:00`);
+          }
+          if (filterInfo.pcpValues && Object.keys(filterInfo.pcpValues).length > 0) {
+            const pcpFilter = Object.entries(filterInfo.pcpValues)
+              .map(([key, [min, max]]) => `${key}: ${min.toFixed(1)}-${max.toFixed(1)}`)
+              .join(", ");
+            filterTexts.push(pcpFilter);
+          }
+          return filterTexts.join(" | ");
+        });
+    }
 
     const g = svg
       .append("g")
@@ -180,6 +141,59 @@ export default function SunburstChart({
       .attr("in", "offsetBlur");
     femerge.append("feMergeNode")
       .attr("in", "SourceGraphic");
+
+    // Add filter indicator if filters are active
+    if (filterInfo && (filterInfo.timeRange || Object.keys(filterInfo.pcpValues).length > 0)) {
+      const filterIndicator = defs.append("filter")
+        .attr("id", "glow-filter")
+        .attr("height", "130%");
+      
+      filterIndicator.append("feGaussianBlur")
+        .attr("in", "SourceAlpha")
+        .attr("stdDeviation", 3)
+        .attr("result", "blur");
+      
+      filterIndicator.append("feComponentTransfer")
+        .append("feFuncA")
+        .attr("type", "linear")
+        .attr("slope", 0.7);
+      
+      const feMerge = filterIndicator.append("feMerge");
+      feMerge.append("feMergeNode")
+        .attr("in", "blur");
+      feMerge.append("feMergeNode")
+        .attr("in", "SourceGraphic");
+      
+      g.append("circle")
+        .attr("r", radius + 15)
+        .attr("fill", "none")
+        .attr("stroke", "#cc0000")
+        .attr("stroke-width", 3)
+        .attr("stroke-dasharray", "10,10")
+        .attr("opacity", 0.4)
+        .attr("filter", "url(#glow-filter)")
+        .style("pointer-events", "none");
+        
+      // Add subtle animation to the filter indicator
+      const indicator = g.append("circle")
+        .attr("r", radius + 15)
+        .attr("fill", "none")
+        .attr("stroke", "#cc0000")
+        .attr("stroke-width", 3)
+        .attr("stroke-dasharray", "10,10")
+        .attr("stroke-dashoffset", 0)
+        .attr("opacity", 0.6)
+        .style("pointer-events", "none");
+        
+      // Animate the stroke-dashoffset
+      indicator.append("animateTransform")
+        .attr("attributeName", "transform")
+        .attr("type", "rotate")
+        .attr("from", "0 0 0")
+        .attr("to", "360 0 0")
+        .attr("dur", "30s")
+        .attr("repeatCount", "indefinite");
+    }
 
     const centerGroup = g.append("g")
       .attr("class", "center-button");
@@ -347,7 +361,7 @@ export default function SunburstChart({
       setActiveSegment(null);
     }
     
-  }, [data, width, height, expandedLevels, selectedState]);
+  }, [data, width, height, expandedLevels, filterInfo]);
 
   // Loading state with animation
   if (loading) {
@@ -405,9 +419,52 @@ export default function SunburstChart({
     );
   }
 
+  // Format filter info for display in a side panel
+  const renderFilterInfo = () => {
+    if (!filterInfo) return null;
+    
+    const filterDetails = [];
+    
+    if (filterInfo.timeRange) {
+      filterDetails.push(`Time: ${filterInfo.timeRange.start}:00 - ${filterInfo.timeRange.end}:00`);
+    }
+    
+    if (filterInfo.pcpValues && Object.keys(filterInfo.pcpValues).length > 0) {
+      Object.entries(filterInfo.pcpValues).forEach(([key, [min, max]]) => {
+        filterDetails.push(`${key}: ${min.toFixed(1)} - ${max.toFixed(1)}`);
+      });
+    }
+    
+    if (filterDetails.length === 0) return null;
+    
+    return (
+      <div style={{
+        position: "absolute",
+        top: 140,
+        right: 0,
+        background: "rgba(255, 255, 255, 0.9)",
+        padding: "6px 10px",
+        borderRadius: 4,
+        fontSize: 12,
+        border: "1px solid #eee",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        maxWidth: "40%",
+        zIndex: 10
+      }}>
+        <div style={{ fontWeight: "bold", marginBottom: 4, color: "#cc0000" }}>Active Filters:</div>
+        {filterDetails.map((detail, i) => (
+          <div key={i} style={{ fontSize: 11, marginBottom: 2 }}>{detail}</div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
       <svg ref={svgRef} style={{ width: "100%", height: "100%" }} />
+      
+      {/* Render filter info panel */}
+      {renderFilterInfo()}
       
       {/* Enhanced tooltip */}
       {activeSegment && (
@@ -426,6 +483,7 @@ export default function SunburstChart({
             border: "1px solid rgba(0,0,0,0.05)",
             transition: "opacity 0.2s ease-in-out",
             maxWidth: "250px",
+            zIndex: 20
           }}
         >
           <div style={{ marginBottom: "8px" }}>
@@ -491,13 +549,11 @@ export default function SunburstChart({
           padding: "8px 12px",
           borderRadius: "6px",
           fontSize: "12px",
+          boxShadow: "0 2px 5px rgba(0,0,0,0.1)"
         }}
       >
         <div style={{ fontWeight: "bold", marginBottom: "5px", color: "#495057" }}>LEGEND</div>
         {seasonOrder.map((seasonName, i) => {
-          const season = data?.children?.find(s => s.name === seasonName);
-          if (!season) return null;
-          
           const colors = ["#99d98c", "#e9c46a", "#bc6c25", "#005f73"];
           
           return (
