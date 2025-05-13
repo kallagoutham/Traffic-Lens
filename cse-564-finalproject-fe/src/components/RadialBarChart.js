@@ -148,7 +148,7 @@ const RadialBarChart = ({ selectedState, width = 600, height = 400 }) => {
                 return (
                   <g key={item.poi}>
                     <circle cx={centerX - maxR - 110} cy={y} r={4}
-                      fill={["#b25dd6","#cdcdcd","#f96b69","#72c556","#f8d950"][i]}
+                      fill={["#b25dd6","#cdcdcd","#f96b69","#72c556","#f8d950","#00b02a"][i]}
                     />
                     <text
                       x={centerX - maxR - 98}

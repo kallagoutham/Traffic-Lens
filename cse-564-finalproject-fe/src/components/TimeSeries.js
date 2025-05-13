@@ -7,7 +7,7 @@ export default function TimeSeries({
   hourlyLoading = false,
   weekdayLoading = false,
   theme = {
-    primary: '#4dff4d',
+    primary: '#cc0000',
     secondary: '#4d79ff',
     background: '#ffffff',
     text: '#333333',
@@ -409,8 +409,7 @@ export default function TimeSeries({
         fontFamily: 'system-ui, sans-serif',
         backgroundColor: theme.background,
         borderRadius: '8px',
-        boxShadow: '0 2px 12px rgba(0, 0, 0, 0.05)',
-        padding: '10px',
+        padding: '8px',
         overflow: 'hidden'
       }}
     >

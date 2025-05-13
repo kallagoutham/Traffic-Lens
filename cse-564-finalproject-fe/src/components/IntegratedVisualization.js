@@ -85,12 +85,12 @@ export default function IntegratedVisualization({
       .attr('fill', d => colorScale(d.value))
       .attr('rx', 2) // Slight rounding of corners
       .style('cursor', 'pointer')
-      .style('transition', 'all 0.2s ease-in-out') // Smooth transition for hover effects
+      .style('transition', 'all 0.2s ease-in-out')
       .on('mouseover', function() {
         d3.select(this)
           .attr('stroke', '#fff')
           .attr('stroke-width', 2)
-          .style('filter', 'brightness(1.1)'); // Brighten on hover
+          .style('filter', 'brightness(1.1)'); 
       })
       .on('mouseout', function() {
         d3.select(this)
@@ -105,39 +105,34 @@ export default function IntegratedVisualization({
         .style('opacity', 1)
         .delay((d, i) => i * 25);
     }
-
-    // County name text - IMPROVED: larger font size and bolder text
     cell.append('text')
-      .attr('x', 3).attr('y', 14) // Adjusted y position for better alignment
+      .attr('x', 3).attr('y', 14) 
       .attr('font-size', d => {
         const w = d.x1 - d.x0;
-        // Increased font sizes for better visibility
         return w > 100 ? '14px' : w > 70 ? '12px' : '10px';
       })
-      .attr('font-weight', '900') // Bolder text (900 instead of bold)
+      .attr('font-weight', '1000')
       .attr('fill', '#fff')
-      .attr('text-shadow', '0px 1px 2px rgba(0,0,0,0.8)') // Added text shadow for better contrast
+      .attr('text-shadow', '0px 1px 2px rgba(0,0,0,0.8)') 
       .text(d => {
         const w = d.x1 - d.x0, h = d.y1 - d.y0;
         if (w > 50 && h > 25) return d.data.county;
-        if (w > 40 && h > 20) return d.data.county.slice(0, Math.floor(w/7)); // Adjusted to show more text
+        if (w > 40 && h > 20) return d.data.county.slice(0, Math.floor(w/7)); 
         return '';
       });
 
-    // Count value text - slightly improved for consistency
     cell.append('text')
-      .attr('x', 3).attr('y', 28) // Adjusted y position to accommodate larger county name
-      .attr('font-size', '10px') // Increased from 8px
-      .attr('font-weight', '700') // Added semi-bold weight
+      .attr('x', 3).attr('y', 28) 
+      .attr('font-size', '10px')
+      .attr('font-weight', '700')
       .attr('fill', '#fff')
-      .attr('text-shadow', '0px 1px 1px rgba(0,0,0,0.5)') // Added subtle text shadow
+      .attr('text-shadow', '0px 1px 1px rgba(0,0,0,0.5)')
       .text(d => {
         if (d.value >= 1000000) return `${(d.value/1000000).toFixed(1)}M`;
         if (d.value >= 1000) return `${(d.value/1000).toFixed(1)}k`;
         return d.value;
       });
 
-    // tooltip
     const tooltip = d3.select(containerRef.current)
       .append('div')
         .attr('class', 'treemap-tooltip')
@@ -160,7 +155,6 @@ export default function IntegratedVisualization({
           .attr('stroke-width', 2)
           .style('filter', 'brightness(1.1)');
           
-        // Enhance text visibility
         d3.select(this).selectAll('text')
           .style('font-weight', '900')
           .style('text-shadow', '0px 1px 3px rgba(0,0,0,1)');
@@ -223,25 +217,20 @@ export default function IntegratedVisualization({
       .sort((a, b) => b.count - a.count)
       .slice(0, maxBars);
 
+    const maxCount = d3.max(display, d => d.count);
+
     const root = d3.hierarchy({ name: "ZIP Codes", children: display })
       .sum(d => d.count)
       .sort((a, b) => b.value - a.value);
 
-    // Use partition layout for sunburst
     d3.partition()
       .size([2 * Math.PI, radius])
       (root);
 
-    // Use more vibrant colors
-    const color = d3.scaleOrdinal()
-      .domain(display.map(d => d.zipcode))
-      .range([
-        '#3366CC', '#DC3912', '#FF9900', '#109618', '#990099',
-        '#0099C6', '#DD4477', '#66AA00', '#B82E2E', '#316395',
-        '#994499', '#22AA99', '#AAAA11', '#6633CC', '#E67300'
-      ]);
+    const color = d3.scaleSequential()
+          .domain([0, 1])
+          .interpolator(d3.interpolateReds);
 
-    // Arc generator with minimal padding
     const arc = d3.arc()
       .startAngle(d => d.x0)
       .endAngle(d => d.x1)
@@ -250,18 +239,20 @@ export default function IntegratedVisualization({
       .padAngle(0.005)
       .padRadius(radius);
 
-    // Create slices with enhanced hover effects
     const slices = g.selectAll('path')
       .data(root.descendants().filter(d => d.depth))
       .join('path')
         .attr('d', arc)
-        .attr('fill', d => color(d.data.zipcode))
+        .attr('fill', d => {
+      const t = d.data.count / maxCount;
+      return d3.scaleSequential()
+      .domain([0, 1.5])
+      .interpolator(d3.interpolateReds)(t);})
         .attr('stroke', '#fff')
         .attr('stroke-width', 0.5)
         .style('cursor', 'pointer')
-        .style('transition', 'all 0.2s ease-in-out') // Smooth transition for hover
+        .style('transition', 'all 0.2s ease-in-out') 
         .on('mouseover', function(e, d) {
-          // Highlight current slice
           d3.select(this)
             .attr('stroke', '#fff')
             .attr('stroke-width', 2)
@@ -303,10 +294,8 @@ export default function IntegratedVisualization({
         .delay((d, i) => i * 50);
     }
 
-    // Labels for ZIP codes - IMPROVED: larger font and better visibility
-    // Show only the zipcode (no "ZIP" prefix text)
     g.selectAll('text')
-      .data(root.descendants().filter(d => d.depth && (d.x1 - d.x0) > 0.15)) // Reduced threshold to show more labels
+      .data(root.descendants().filter(d => d.depth && (d.x1 - d.x0) > 0.15)) 
       .join('text')
         .attr('transform', d => {
           const x = (d.x0 + d.x1) / 2;
@@ -316,12 +305,12 @@ export default function IntegratedVisualization({
           return `translate(${Math.cos(angle) * radius},${Math.sin(angle) * radius}) rotate(${angle * 180 / Math.PI})`;
         })
         .attr('text-anchor', 'middle')
-        .attr('font-size', '11px') // Further increased from 10px
-        .attr('font-weight', '900') // Maximum boldness
+        .attr('font-size', '11px') 
+        .attr('font-weight', '900')
         .attr('fill', '#fff')
-        .attr('text-shadow', '0px 1px 3px rgba(0,0,0,0.9)') // Enhanced text shadow
+        .attr('text-shadow', '0px 1px 3px rgba(0,0,0,0.9)') 
         .style('pointer-events', 'none')
-        .text(d => d.data.zipcode); // Just show the zipcode number
+        .text(d => d.data.zipcode); 
 
     // tooltip
     const tooltip = d3.select(containerRef.current)
@@ -369,14 +358,11 @@ export default function IntegratedVisualization({
           .attr('stroke-width', 1)
           .style('filter', 'none');
       });
-
-    // Don't add the central circle as requested
-    /* Removed central circle
     g.append('circle')
       .attr('r', radius * 0.12)
       .attr('fill', '#fff')
       .attr('stroke', '#ddd');
-    */
+    
 
   }, [zipData, dims, state, maxBars, animated]);
 
