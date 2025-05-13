@@ -218,5 +218,44 @@ def sunburst_data():
 
     return jsonify(tree), 200
 
+# ─── POI data ────────────────────────────────────────────────────────────
+@app.route('/api/poi-data', methods=['GET'])
+def poi_data():
+    state = request.args.get('state')
+    df = get_df_for_state(state)
+    poi_columns = [
+        'Amenity', 'Bump', 'Crossing', 'Give_Way', 'Junction', 
+        'No_Exit', 'Railway', 'Roundabout', 'Station', 'Stop', 
+        'Traffic_Calming', 'Traffic_Signal', 'Turning_Loop'
+    ]
+    available_poi_columns = [col for col in poi_columns if col in df.columns]
+    poi_counts = {}
+    for col in available_poi_columns:
+        poi_counts[col] = int(df[col].sum())
+    total_accidents = len(df)
+    poi_data = []
+    for poi, count in poi_counts.items():
+        if count > 0: 
+            percentage = round((count / total_accidents) * 100, 1)
+            poi_data.append({
+                'poi': poi,
+                'count': count,
+                'percentage': percentage
+            })
+    poi_data = sorted(poi_data, key=lambda x: x['percentage'], reverse=True)
+    yes_count = sum(poi_counts.values())
+    total_poi_values = yes_count + (len(available_poi_columns) * total_accidents - yes_count)
+    yes_percentage = round((yes_count / total_poi_values) * 100, 1) if total_poi_values > 0 else 0
+    no_percentage = 100 - yes_percentage
+    response = {
+        'poi_data': poi_data,
+        'yes_no_data': [
+            {'category': 'Yes', 'percentage': yes_percentage},
+            {'category': 'No', 'percentage': no_percentage}
+        ],
+        'total_accidents': total_accidents
+    }
+    return jsonify(response), 200
+
 if __name__ == "__main__":
     app.run(debug=True)

@@ -6,6 +6,7 @@ import { API_BASE_URL, ENDPOINTS } from "./constants/constants";
 import StateDetailMap from "./components/StateDetailMap";
 import IntegratedVisualization from "./components/IntegratedVisualization";
 import SunburstChart from "./components/SunburstChart";
+import RadialBarChart from "./components/RadialBarChart";
 
 export default function App() {
   const [stateData, setStateData] = useState([]);
@@ -14,8 +15,8 @@ export default function App() {
   const [parData, setParData] = useState([]);
   const [selectedState, setSelectedState] = useState(null);
   const [hoveredState, setHoveredState] = useState(null);
-  const [yearlyLoading, setYearlyLoading] = useState(false);
-  const [yearlyData, setYearlyData] = useState([]);
+  const [weekdayLoading, setWeekdayLoading] = useState(false);
+  const [weekdayData, setWeekdayData] = useState([]);
   const [timeLoading, setTimeLoading] = useState(false);
   const [locationData, setLocationData] = useState([]);
   const [locationLoading, setLocationLoading] = useState(false);
@@ -56,16 +57,16 @@ export default function App() {
       .then(setParData)
       .catch((err) => console.error("Failed to load parallel data:", err));
 
-    // Load yearly trend data with loading state
-    setYearlyLoading(true);
-    fetch(`${API_BASE_URL}${ENDPOINTS.YEARLY_TREND}${qs}`)
+    // Load weekday data with loading state
+    setWeekdayLoading(true);
+    fetch(`${API_BASE_URL}${ENDPOINTS.WEEKDAY_COUNT}${qs}`)
       .then((r) => r.json())
-      .then((data) => setYearlyData(data))
+      .then((data) => setWeekdayData(data))
       .catch((err) => {
-        console.error("Failed to load yearly trend:", err);
-        setYearlyData([]);
+        console.error("Failed to load weekday data:", err);
+        setWeekdayData([]);
       })
-      .finally(() => setYearlyLoading(false));
+      .finally(() => setWeekdayLoading(false));
 
     if (selectedState) {
       setLocationLoading(true);
@@ -150,12 +151,12 @@ export default function App() {
           </div>
         )}
         <div className="chart-card">
-          <div className="chart-title">Time & Year Analysis</div>
+          <div className="chart-title">Time & Weekday Analysis</div>
           <TimeSeries
             hourlyData={timeData}
-            yearlyData={yearlyData}
+            weekdayData={weekdayData}
             hourlyLoading={timeLoading}
-            yearlyLoading={yearlyLoading}
+            weekdayLoading={weekdayLoading}
           />
         </div>
         <div className="chart-card">
@@ -188,6 +189,14 @@ export default function App() {
             Accident Timeline Sunburst
           </div>
           <SunburstChart
+            selectedState={selectedState}
+            width={500}
+            height={500}
+          />
+        </div>
+         <div className="chart-card">
+          <div className="chart-title">Point of Interest Analysis</div>
+          <RadialBarChart
             selectedState={selectedState}
             width={500}
             height={500}
