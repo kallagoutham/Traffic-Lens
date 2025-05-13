@@ -39,13 +39,13 @@ export default function MapChart({
   hoveredState = null,
   onStateSelect = () => {},
   onStateHover = () => {},
-  loading = false
+  loading = false,
+  themeColor 
 }) {
   const svgRef = useRef();
   const containerRef = useRef();
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [tooltip, setTooltip] = useState({ show: false, content: '', x: 0, y: 0 });
-
   // Get container dimensions on mount and resize
   useEffect(() => {
     if (!containerRef.current) return;
@@ -86,10 +86,30 @@ export default function MapChart({
     // color scale…
     const counts = new Map(data.map((d) => [d.state, d.count]));
     const maxCount = d3.max(data, (d) => d.count) || 1;
-    const color = d3
-      .scaleSequential([0, maxCount], (t) =>
-        d3.interpolate("#ffdddd", "#cc0000")(t)
-      );
+    let color;
+
+if (themeColor === "red") {
+  color = d3
+    .scaleSequential()
+    .domain([0, maxCount])
+    .interpolator(d3.interpolateRgb("#ffdddd", "#cc0000"));
+} else if (themeColor === "yellow") {
+  color = d3
+    .scaleSequential()
+    .domain([0, maxCount])
+    .interpolator(d3.interpolateRgb("#ffffdd", "#cccc00"));
+} else if (themeColor === "green") {
+  color = d3
+    .scaleSequential()
+    .domain([0, maxCount])
+    .interpolator(d3.interpolateRgb("#ddffdd", "#00cc00"));
+} else {
+  // fallback to red
+  color = d3
+    .scaleSequential()
+    .domain([0, maxCount])
+    .interpolator(d3.interpolateRgb("#ffdddd", "#cc0000"));
+}
 
     // sea + states
     g.append("rect").attr("width", width).attr("height", height).attr("fill", "#fff");
