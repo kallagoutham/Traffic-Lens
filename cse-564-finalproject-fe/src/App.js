@@ -327,148 +327,193 @@ useEffect(() => {
 
   return (
     <>
-      <header
+<header
+  style={{
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "10px 20px",
+    background: "#c6c6c6",                   // subtle background
+    boxShadow: "0 2px 4px rgba(0,0,0,0.1)"    // light shadow
+  }}
+>
+  <div style={{ display: "flex", alignItems: "center", marginLeft:"540px" }}>
+    {/* Traffic Light “Housing” */}
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-around",
+        alignItems: "center",
+        width: "20px",
+        height: "35px",
+        padding: "6px",
+        background: "#333",
+        borderRadius: "8px",
+        marginRight: "12px"
+      }}
+    >
+      <span
+        onClick={() => setThemeColor("red")}
         style={{
+          cursor: "pointer",
+          fontSize: "0.6rem",
+          opacity: themeColor === "red" ? 1 : 0.3
+        }}
+        title="Red theme"
+      >
+        🔴
+      </span>
+      <span
+        onClick={() => setThemeColor("yellow")}
+        style={{
+          cursor: "pointer",
+          fontSize: "0.6rem",
+          opacity: themeColor === "yellow" ? 1 : 0.3
+        }}
+        title="Yellow theme"
+      >
+        🟡
+      </span>
+      <span
+        onClick={() => setThemeColor("green")}
+        style={{
+          cursor: "pointer",
+          fontSize: "0.6rem",
+          opacity: themeColor === "green" ? 1 : 0.3
+        }}
+        title="Green theme"
+      >
+        🟢
+      </span>
+    </div>
+
+    {/* Colored Heading */}
+    <h1
+      style={{
+        margin: 0,
+        fontSize: "1.6rem",
+        color:
+          themeColor === "red"
+            ? "#cc0000"
+            : themeColor === "yellow"
+            ? "#f39c12"
+            : "#2ecc71",
+        textShadow: "1px 1px 2px rgba(0,0,0,0.1)"
+      }}
+    >
+      Traffic Accident Analysis Dashboard
+    </h1>
+
+    {/* Active Filters Panel */}
+    {hasActiveFilters() && (
+      <div
+        style={{
+          marginLeft: "15px",
+          fontSize: "0.8rem",
+          padding: "4px 8px",
+          background:
+            themeColor === "red"
+              ? "rgba(204, 0, 0, 0.1)"
+              : themeColor === "yellow"
+              ? "rgba(243, 156, 18, 0.1)"
+              : "rgba(46, 204, 113, 0.1)",
+          borderRadius: "4px",
+          border: `1px solid ${
+            themeColor === "red"
+              ? "#cc0000"
+              : themeColor === "yellow"
+              ? "#f39c12"
+              : "#2ecc71"
+          }`,
           display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "10px 20px",
+          alignItems: "center"
         }}
       >
-        <div style={{ display: "flex", alignItems: "center" }}>
-          {/* Traffic Light Emojis */}
-          <div style={{ marginRight: "10px" }}>
-            <span 
-              onClick={() => setThemeColor('red')}
-              style={{ 
-                cursor: "pointer", 
-                fontSize: "1.2rem", 
-                margin: "0 3px",
-                opacity: themeColor === 'red' ? 1 : 0.6
-              }}
-              title="Red theme"
-            >
-              🔴
-            </span>
-            <span 
-              onClick={() => setThemeColor('yellow')}
-              style={{ 
-                cursor: "pointer", 
-                fontSize: "1.2rem", 
-                margin: "0 3px",
-                opacity: themeColor === 'yellow' ? 1 : 0.6
-              }}
-              title="Yellow theme"
-            >
-              🟡
-            </span>
-            <span 
-              onClick={() => setThemeColor('green')}
-              style={{ 
-                cursor: "pointer", 
-                fontSize: "1.2rem", 
-                margin: "0 3px",
-                opacity: themeColor === 'green' ? 1 : 0.6
-              }}
-              title="Green theme"
-            >
-              🟢
-            </span>
-          </div>
-          <h1 style={{ margin: 0 }}>Traffic Accident Analysis Dashboard</h1>
-          
-          {/* Active Filters Panel */}
-          {hasActiveFilters() && (
-            <div style={{
-              marginLeft: "15px",
-              fontSize: "0.8rem",
-              padding: "4px 8px",
-              background: themeColor === 'red' ? "rgba(204, 0, 0, 0.1)" :
-                         themeColor === 'yellow' ? "rgba(243, 156, 18, 0.1)" :
-                         "rgba(46, 204, 113, 0.1)",
-              borderRadius: "4px",
-              border: `1px solid ${themeColor === 'red' ? "#cc0000" : 
-                                   themeColor === 'yellow' ? "#f39c12" : 
-                                   "#2ecc71"}`,
-              display: "flex",
-              alignItems: "center"
-            }}>
-              <span style={{ fontWeight: "bold", marginRight: "8px" }}>
-                Active Filters: {getActiveFilterCount()}
-              </span>
-              {formatActiveFilters().slice(0, 1).map((filter, i) => (
-                <span key={i} style={{ marginRight: "8px" }}>{filter}</span>
-              ))}
-              {formatActiveFilters().length > 1 && (
-                <span>+{formatActiveFilters().length - 1} more</span>
-              )}
-            </div>
-          )}
-        </div>
-        
-        {(selectedState || hasActiveFilters()) && (
-          <div style={{ display: "flex", gap: "10px" }}>
-            {selectedState && (
-              <button
-                onClick={() => setSelectedState(null)}
-                style={{
-                  padding: "6px 12px",
-                  fontSize: "0.9rem",
-                  cursor: "pointer",
-                  border: "1px solid #ccc",
-                  borderRadius: "4px",
-                  background: "#fff",
-                }}
-              >
-                Reset State
-              </button>
-            )}
-            {hasActiveFilters() && (
-              <button
-                onClick={resetFilters}
-                style={{
-                  padding: "6px 12px",
-                  fontSize: "0.9rem",
-                  cursor: "pointer",
-                  border: "1px solid #ccc",
-                  borderRadius: "4px",
-                  background: "#fff",
-                }}
-              >
-                Reset Filters
-              </button>
-            )}
-            {(selectedState || hasActiveFilters()) && (
-              <button
-                onClick={() => {
-                  setSelectedState(null);
-                  resetFilters();
-                }}
-                style={{
-                  padding: "6px 12px",
-                  fontSize: "0.9rem",
-                  cursor: "pointer",
-                  border: themeColor === 'red' ? "1px solid #cc0000" :
-                          themeColor === 'yellow' ? "1px solid #f39c12" :
-                          "1px solid #2ecc71",
-                  borderRadius: "4px",
-                  background: "#fff",
-                  color: themeColor === 'red' ? "#cc0000" :
-                          themeColor === 'yellow' ? "#f39c12" :
-                          "#2ecc71",
-                }}
-              >
-                Reset All
-              </button>
-            )}
-          </div>
+        <span style={{ fontWeight: "bold", marginRight: "8px" }}>
+          Active Filters: {getActiveFilterCount()}
+        </span>
+        {formatActiveFilters().slice(0, 1).map((filter, i) => (
+          <span key={i} style={{ marginRight: "8px" }}>
+            {filter}
+          </span>
+        ))}
+        {formatActiveFilters().length > 1 && (
+          <span>+{formatActiveFilters().length - 1} more</span>
         )}
-      </header>
+      </div>
+    )}
+  </div>
+
+  {/* Reset / Action Buttons */}
+  {(selectedState || hasActiveFilters()) && (
+    <div style={{ display: "flex", gap: "10px" }}>
+      {selectedState && (
+        <button
+          onClick={() => setSelectedState(null)}
+          style={{
+            padding: "6px 12px",
+            fontSize: "0.9rem",
+            cursor: "pointer",
+            border: "1px solid #ccc",
+            borderRadius: "4px",
+            background: "#fff"
+          }}
+        >
+          Reset State
+        </button>
+      )}
+      {hasActiveFilters() && (
+        <button
+          onClick={resetFilters}
+          style={{
+            padding: "6px 12px",
+            fontSize: "0.9rem",
+            cursor: "pointer",
+            border: "1px solid #ccc",
+            borderRadius: "4px",
+            background: "#fff"
+          }}
+        >
+          Reset Filters
+        </button>
+      )}
+      <button
+        onClick={() => {
+          setSelectedState(null);
+          resetFilters();
+        }}
+        style={{
+          padding: "6px 12px",
+          fontSize: "0.9rem",
+          cursor: "pointer",
+          border:
+            themeColor === "red"
+              ? "1px solid #cc0000"
+              : themeColor === "yellow"
+              ? "1px solid #f39c12"
+              : "1px solid #2ecc71",
+          borderRadius: "4px",
+          background: "#fff",
+          color:
+            themeColor === "red"
+              ? "#cc0000"
+              : themeColor === "yellow"
+              ? "#f39c12"
+              : "#2ecc71"
+        }}
+      >
+        Reset All
+      </button>
+    </div>
+  )}
+</header>
+
 
       <div className="dashboard">
         {!selectedState && (
           <div className="chart-card">
-            <div className="chart-title">State-wise Crashes</div>
+            <div className="chart-title">US accident distribution</div>
             <MapChart
               data={stateData}
               selectedState={selectedState}
@@ -517,7 +562,7 @@ useEffect(() => {
         </div>
         <div className="chart-card">
           <div className="chart-title">
-            Severity / Distance / Hour Relationships
+            WEATHER INFLUENCE
             {Object.keys(filtersForUI.pcpValues).length > 0 && (
               <span style={{ 
                 fontSize: "0.8rem", 
@@ -569,8 +614,8 @@ useEffect(() => {
         </div>
         <div className="chart-card">
           <div className="chart-title">
-            Accident Timeline Sunburst
-            {hasActiveFilters() && (
+            sEASONAL PATTERNS 
+               {hasActiveFilters() && (
               <span style={{ 
                 fontSize: "0.8rem", 
                 fontWeight: "normal", 
