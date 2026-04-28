@@ -1,6 +1,6 @@
 # TrafficLens — Traffic Accident Visualization and Analysis
 
-TrafficLens is a data exploration and visualization platform for traffic accident datasets (State Wise-focused in included data). It pairs a lightweight Flask API that provides filtered, preprocessed CSV views with a React-based frontend containing coordinated visualizations: maps, time-series, sunburst charts, parallel coordinates, radial summaries, and more.
+TrafficLens is a data exploration and visualization platform for traffic accident datasets. It pairs a lightweight Flask API that provides filtered, preprocessed CSV views with a React-based frontend containing coordinated visualizations: maps, time-series, sunburst charts, parallel coordinates, radial summaries, and more.
 
 This README focuses on what the system does, how it is structured, the APIs exposed by the backend, data expectations and schema, and developer notes for running and extending the project.
 
