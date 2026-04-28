@@ -3,6 +3,7 @@ from flask_cors import CORS
 from flask_caching import Cache
 import pandas as pd
 import glob
+import os
 import calendar
 
 # ─── App & Cache Setup ───────────────────────────────────────────────────────
@@ -17,10 +18,48 @@ app.config.from_mapping({
 cache = Cache(app)
 
 # ─── Load & preprocess all state CSVs ───────────────────────────────────────
-df_all = pd.concat(
-    [pd.read_csv(path) for path in glob.glob('../datasets/traffic-accident-sampled-*.csv')],
-    ignore_index=True
-)
+# Attempt to locate dataset CSVs. Primary expected location is '../datasets/traffic-accident-sampled-*.csv'.
+paths = glob.glob('../datasets/traffic-accident-sampled-*.csv')
+if not paths:
+    # Try several sensible alternative locations (single-file or other naming patterns)
+    alt_patterns = [
+        '../traffic-accident-ny-filtered.csv',
+        '../traffic-accident-*.csv',
+        '../filtered_datasets/traffic-accident-filtered_*.csv',
+        '../datasets/*.csv'
+    ]
+    for p in alt_patterns:
+        found = glob.glob(p)
+        if found:
+            paths.extend(found)
+
+if not paths:
+    raise FileNotFoundError(
+        "No dataset CSVs found. Expected files like '../datasets/traffic-accident-sampled-*.csv' or '../traffic-accident-ny-filtered.csv'.\n"
+        "Place CSVs in 'datasets/' or 'filtered_datasets/', or update the path logic in backend/app.py."
+    )
+
+# Deduplicate paths while preserving order (some globs can match the same file twice)
+seen = set()
+unique_paths = []
+for p in paths:
+    if p not in seen:
+        seen.add(p)
+        unique_paths.append(p)
+
+sizes = []
+for p in unique_paths:
+    try:
+        sizes.append((p, os.path.getsize(os.path.join(os.path.dirname(__file__), p))))
+    except OSError:
+        sizes.append((p, None))
+
+print(f"Loading {len(unique_paths)} dataset file(s): {unique_paths}")
+for p, s in sizes:
+    print(f" - {p} ({'unknown size' if s is None else f'{s} bytes'})")
+
+# Read and concatenate CSVs
+df_all = pd.concat([pd.read_csv(path) for path in unique_paths], ignore_index=True)
 df_all['Start_Time'] = pd.to_datetime(df_all['Start_Time'])
 df_all['hour']       = df_all['Start_Time'].dt.hour
 df_all['day']        = df_all['Start_Time'].dt.day
